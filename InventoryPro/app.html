@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InventoryPro - Loading</title>
+    <link rel="icon" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/icons/box-seam-fill.svg" type="image/svg+xml">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a0ca3;
+            --secondary: #7209b7;
+            --accent: #f72585;
+            --light: #f8f9fa;
+            --dark: #1e1e2c;
+            --card-bg: rgba(30, 30, 44, 0.75); /* More transparent card */
+        }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #000428 0%, #004e92 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            cursor:none;
+            -webkit-user-select: none; /* Safari support */
+            user-select: none; /* Prevent text selection */
+        }
+        
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.5;
+            animation: float 15s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0) translateX(0);
+            }
+            25% {
+                transform: translateY(-30px) translateX(30px);
+            }
+            50% {
+                transform: translateY(-15px) translateX(-40px);
+            }
+            75% {
+                transform: translateY(30px) translateX(25px);
+            }
+        }
+        
+        .container {
+            text-align: center;
+            padding: 3rem;
+            background-color: var(--card-bg);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            max-width: 520px;
+            width: 90%;
+            position: relative;
+            z-index: 10;
+            -webkit-backdrop-filter: blur(15px); /* Safari support */
+            backdrop-filter: blur(15px); /* Increased blur effect */
+            border: 1px solid rgba(255, 255, 255, 0.15); /* Slightly more visible border */
+            overflow: hidden;
+        }
+        
+        .glow {
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(
+                circle at center,
+                rgba(67, 97, 238, 0.15) 0%,
+                rgba(114, 9, 183, 0.05) 30%,
+                transparent 70%
+            );
+            z-index: -1;
+        }
+        
+        .logo-container {
+            position: relative;
+            margin-bottom: 2.5rem;
+            display: inline-block;
+        }
+        
+        .logo-bg {
+            width: 110px;
+            height: 110px;
+            background: linear-gradient(45deg, var(--primary-dark), var(--secondary));
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px rgba(67, 97, 238, 0.3);
+            position: relative;
+            z-index: 1;
+            animation: pulse-shadow 3s infinite ease-in-out;
+        }
+        
+        @keyframes pulse-shadow {
+            0%, 100% {
+                box-shadow: 0 10px 25px rgba(67, 97, 238, 0.3);
+            }
+            50% {
+                box-shadow: 0 15px 35px rgba(67, 97, 238, 0.5);
+            }
+        }
+        
+        .logo-icon {
+            width: 60px;
+            height: 60px;
+            fill: white;
+            animation: pulse-icon 2s infinite ease-in-out;
+        }
+        
+        @keyframes pulse-icon {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.12);
+            }
+        }
+        
+        h1 {
+            color: var(--light);
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #ffffff, #b8c9f5);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .tagline {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.2rem;
+            margin-bottom: 3rem;
+            font-weight: 300;
+        }
+        
+        .loader-container {
+            position: relative;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .loader-wrapper {
+            position: relative;
+            width: 280px;
+            margin-top: 30px; /* Space for percentage above */
+        }
+        
+        .loader {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .progress {
+            position: absolute;
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            background-size: 200% 100%;
+            border-radius: 30px;
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: gradient-shift 3s infinite linear;
+        }
+        
+        @keyframes gradient-shift {
+            0% {
+                background-position: 0% 50%;
+            }
+            100% {
+                background-position: 200% 50%;
+            }
+        }
+        
+        .percentage {
+            position: absolute;
+            top: -25px;
+            left: 0; /* Changed from right to left */
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+            font-weight: 500;
+            background-color: rgba(67, 97, 238, 0.2);
+            padding: 2px 8px;
+            -webkit-backdrop-filter: blur(5px); /* Safari support */
+            backdrop-filter: blur(5px);
+            transition: left 0.3s ease; /* Changed from right to left for transition */
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .loading-text {
+            margin-top: 2rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1rem;
+            letter-spacing: 1px;
+            font-weight: 400;
+        }
+        
+        .pulse {
+            animation: pulse-text 1.5s infinite;
+        }
+        
+        @keyframes pulse-text {
+            0%, 100% {
+                opacity: 0.7;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 2.2rem;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+            
+            .tagline {
+                font-size: 1rem;
+                margin-bottom: 2.5rem;
+            }
+            
+            .loader-wrapper {
+                width: 220px;
+            }
+            
+            .logo-bg {
+                width: 95px;
+                height: 95px;
+            }
+            
+            .logo-icon {
+                width: 50px;
+                height: 50px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.8rem;
+            }
+            
+            .logo-bg {
+                width: 85px;
+                height: 85px;
+            }
+            
+            .logo-icon {
+                width: 45px;
+                height: 45px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .tagline {
+                font-size: 0.9rem;
+                margin-bottom: 2rem;
+            }
+            
+            .loader-wrapper {
+                width: 100%;
+            }
+            
+            .loader {
+                height: 8px;
+            }
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+    <div class="particles" id="particles"></div>
+    <div class="container">
+        <div class="glow"></div>
+        <div class="logo-container">
+            <div class="logo-bg">
+                <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                    <path d="M12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM8 7h8v2H8z"/>
+                </svg>
+            </div>
+        </div>
+        <h1>InventoryPro</h1>
+        <p class="tagline">Smart Inventory Management System</p>
+        
+        <div class="loader-container">
+            <div class="loader-wrapper">
+                <span class="percentage" id="percentage">0%</span>
+                <div class="loader">
+                    <div class="progress" id="progress"></div>
+                </div>
+            </div>
+        </div>
+        <p class="loading-text pulse" id="loading-text">Loading resources...</p>
+    </div>
+
+    <script>
+        // Disable right click
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+        
+        // Disable key combinations that could bypass right-click restriction
+        document.addEventListener('keydown', function(e) {
+            // Prevent F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+            if (
+                e.keyCode === 123 || 
+                (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || 
+                (e.ctrlKey && e.keyCode === 85)
+            ) {
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create floating particles
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 12;
+            const colors = ['#4361ee', '#3a0ca3', '#7209b7', '#f72585'];
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                
+                // Random properties
+                const size = Math.random() * 80 + 40;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.left = `${Math.random() * 100}%`;
+                particle.style.top = `${Math.random() * 100}%`;
+                particle.style.opacity = `${Math.random() * 0.08 + 0.02}`;
+                
+                // Animation delay
+                particle.style.animationDelay = `${Math.random() * 5}s`;
+                particle.style.animationDuration = `${Math.random() * 10 + 10}s`;
+                
+                particlesContainer.appendChild(particle);
+            }
+            
+            // Progress bar animation
+            const progress = document.getElementById('progress');
+            const loadingText = document.getElementById('loading-text');
+            const percentage = document.getElementById('percentage');
+            const loaderWidth = document.querySelector('.loader-wrapper').offsetWidth;
+            
+            const messages = [
+                'Loading resources...',
+                'Initializing system...',
+                'Connecting to database...',
+                'Almost there...'
+            ];
+            
+            let step = 0;
+            let width = 0;
+            
+            const updateProgress = setInterval(() => {
+                if (width >= 100) {
+                    clearInterval(updateProgress);
+                    setTimeout(() => {
+                        window.location.href = 'pages/selection.html';
+                    }, 500);
+                } else {
+                    width += Math.floor(Math.random() * 3) + 1;
+                    if (width > 100) width = 100;
+                    
+                    progress.style.width = width + '%';
+                    percentage.textContent = width + '%';
+                    
+                    // Position percentage label to follow progress
+                    // Changed to position from left instead of right
+                    const percentPosition = Math.min(Math.max((width / 100) * loaderWidth - 20, 0), loaderWidth - 40);
+                    percentage.style.left = percentPosition + 'px';
+                    
+                    // Update loading text
+                    if (width > step * 25 && step < messages.length) {
+                        loadingText.textContent = messages[step];
+                        step++;
+                    }
+                }
+            }, 150);
+        });
+    </script>
+</body>
+</html>
