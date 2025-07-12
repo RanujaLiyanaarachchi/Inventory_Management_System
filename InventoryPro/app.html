@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InventoryPro - Loading</title>
+  <link rel="stylesheet" href="app.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+  <div class="background-pattern"></div>
+  <div class="loader-container">
+    <div class="logo-wrapper">
+      <div class="logo-icon">
+        <i class="fas fa-boxes-stacked"></i>
+      </div>
+      <div class="logo-glow"></div>
+    </div>
+    
+    <h1 class="site-title">
+      Inventory<span>Pro</span>
+      <div class="title-underline"></div>
+    </h1>
+    
+    <div class="progress-container">
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+        <div class="progress-shine"></div>
+      </div>
+      <div class="progress-text">
+        <span class="progress-percentage">0%</span>
+        <span class="loading-text">Initializing...</span>
+      </div>
+    </div>
+    
+    <div class="feature-pills">
+      <span class="pill">Inventory Management</span>
+      <span class="pill">Real-time Tracking</span>
+      <span class="pill">Analytics Dashboard</span>
+    </div>
+  </div>
+
+  <script>
+    // Disable right-click context menu
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
+    });
+
+    // Disable keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      // Disable common shortcuts
+      if (e.ctrlKey && (e.key === 'a' || e.key === 'c' || e.key === 'x' || e.key === 'v' || e.key === 's' || e.key === 'p' || e.key === 'u')) {
+        e.preventDefault();
+        return false;
+      }
+      // Disable F12 and developer tools shortcuts
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // Disable text selection and drag
+    document.addEventListener('selectstart', function(e) { e.preventDefault(); });
+    document.addEventListener('dragstart', function(e) { e.preventDefault(); });
+
+    // Simulate loading progress
+    let progress = 0;
+    const progressFill = document.querySelector('.progress-fill');
+    const progressPercentage = document.querySelector('.progress-percentage');
+    const loadingText = document.querySelector('.loading-text');
+    
+    const loadingSteps = [
+      { text: 'Initializing...', duration: 1000 },
+      { text: 'Loading modules...', duration: 1500 },
+      { text: 'Connecting to database...', duration: 1200 },
+      { text: 'Preparing dashboard...', duration: 800 },
+      { text: 'Almost ready...', duration: 500 }
+    ];
+    
+    let currentStep = 0;
+    
+    function updateProgress() {
+      if (progress < 100) {
+        progress += Math.random() * 15 + 5;
+        if (progress > 100) progress = 100;
+        
+        progressFill.style.width = progress + '%';
+        progressPercentage.textContent = Math.round(progress) + '%';
+        
+        // Update loading text based on progress
+        const stepIndex = Math.floor((progress / 100) * loadingSteps.length);
+        if (stepIndex < loadingSteps.length && stepIndex !== currentStep) {
+          currentStep = stepIndex;
+          loadingText.textContent = loadingSteps[stepIndex].text;
+        }
+        
+        setTimeout(updateProgress, Math.random() * 300 + 200);
+      } else {
+        loadingText.textContent = 'Complete!';
+        setTimeout(() => {
+          // Navigate to selection page
+          window.location.href = 'pages/selection.html';
+        }, 1000);
+      }
+    }
+    
+    // Start loading animation after a short delay
+    setTimeout(updateProgress, 500);
+  </script>
+</body>
+</html>
