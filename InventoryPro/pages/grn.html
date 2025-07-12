@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goods Received Note (GRN)</title>
+    <link rel="stylesheet" href="grn.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="form-title">Goods Received Note (GRN)</h1>
+        
+        <div class="form-section">
+            <h3>GRN Information</h3>
+            <div class="form-group row">
+                <div class="col">
+                    <label for="grnNumber">GRN Number <span class="required">*</span></label>
+                    <input type="text" id="grnNumber" readonly>
+                </div>
+                <div class="col">
+                    <label for="purchaseDate">Purchase Date <span class="required">*</span></label>
+                    <input type="date" id="purchaseDate">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="supplier">Supplier <span class="required">*</span></label>
+                <input type="text" id="supplier" placeholder="Enter supplier name">
+            </div>
+        </div>
+        
+        <div class="form-section">
+            <h3>Add Products</h3>
+            <div class="form-group row">
+                <div class="col">
+                    <label for="barcode">Barcode</label>
+                    <div class="barcode-container">
+                        <input type="text" id="barcode" placeholder="Scan or enter barcode">
+                        <button class="barcode-btn" type="button">Scan</button>
+                    </div>
+                </div>
+                <div class="col">
+                    <label for="productCode">Product Code <span class="required">*</span></label>
+                    <input type="text" id="productCode" placeholder="Enter product code">
+                </div>
+            </div>
+            
+            <div class="form-group row">
+                <div class="col">
+                    <label for="productName">Product Name <span class="required">*</span></label>
+                    <input type="text" id="productName" placeholder="Enter product name">
+                </div>
+                <div class="col">
+                    <label for="priceCode">Price Code</label>
+                    <input type="text" id="priceCode" placeholder="Enter price code">
+                </div>
+            </div>
+            
+            <div class="form-group row">
+                <div class="col-small">
+                    <label for="quantity">Quantity <span class="required">*</span></label>
+                    <input type="number" id="quantity" min="1" value="1">
+                </div>
+                <div class="col-small">
+                    <label for="purchasePrice">Purchase Price (Rs) <span class="required">*</span></label>
+                    <input type="number" id="purchasePrice" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="col-small">
+                    <label for="sellingPrice">Selling Price (Rs) <span class="required">*</span></label>
+                    <input type="number" id="sellingPrice" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="col-small">
+                    <label for="retailPrice">Retail Price (Rs) <span class="required">*</span></label>
+                    <input type="number" id="retailPrice" step="0.01" min="0" placeholder="0.00">
+                </div>
+            </div>
+            
+            <div class="form-group row">
+                <div class="col">
+                    <label for="discountType">Discount Type</label>
+                    <select id="discountType">
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="fixed">Fixed Amount (Rs)</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="discountValue">Discount Value</label>
+                    <input type="number" id="discountValue" step="0.01" min="0" value="0" placeholder="0.00">
+                </div>
+            </div>
+            
+            <button class="btn" id="addProduct" type="button">Add Product</button>
+        </div>
+        
+        <div class="total-summary">
+            <h4>Total Amount</h4>
+            <div class="amount">Rs <span id="summaryTotal">0.00</span></div>
+        </div>
+        
+        <div class="table-container">
+            <table id="grnTable">
+                <thead>
+                    <tr>
+                        <th>Barcode</th>
+                        <th>Product Code</th>
+                        <th>Product Name</th>
+                        <th>Price Code</th>
+                        <th>Quantity</th>
+                        <th>Purchase Price (Rs)</th>
+                        <th>Selling Price (Rs)</th>
+                        <th>Retail Price (Rs)</th>
+                        <th>Discount</th>
+                        <td colspan="11" class="empty-message">
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="11" style="text-align: center; color: #6c757d; padding: 30px;">
+                            No products added yet
+                        <td colspan="9" class="grand-total-label"><strong>GRAND TOTAL:</strong></td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="grand-total-row">
+                        <td colspan="9" style="text-align: right;"><strong>GRAND TOTAL:</strong></td>
+                        <td><strong>Rs <span id="grandTotal">0.00</span></strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+        <div class="btn-container">
+            <button class="btn btn-secondary" type="button" onclick="clearForm()">Clear Form</button>
+            <button class="btn btn-success" type="button" onclick="saveGRN()">Save GRN</button>
+        </div>
+    </div>
+
+    <script>
+        // Generate GRN number
+        function generateGRNNumber() {
+            const timestamp = Date.now().toString().slice(-6);
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            return `GRN-${timestamp}-${random}`;
+        }
+
+        // Initialize form
+        function initializeForm() {
+            document.getElementById('grnNumber').value = generateGRNNumber();
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('purchaseDate').value = today;
+        }
+
+        // Update totals
+        function updateTotals() {
+            const rows = document.querySelectorAll('#grnTable tbody tr');
+            let grandTotal = 0;
+            
+            rows.forEach(row => {
+                if (row.cells.length > 1) {
+                    grandTotal += parseFloat(row.cells[9].textContent);
+                }
+            });
+            
+            document.getElementById('summaryTotal').textContent = grandTotal.toFixed(2);
+            document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
+        }
+
+        // Show alert
+        function showAlert(message, type = 'error') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
+        }
+
+        // Clear product form
+        function clearProductForm() {
+            document.getElementById('barcode').value = '';
+            document.getElementById('productCode').value = '';
+            document.getElementById('productName').value = '';
+            document.getElementById('priceCode').value = '';
+            document.getElementById('quantity').value = '1';
+            document.getElementById('purchasePrice').value = '';
+            document.getElementById('sellingPrice').value = '';
+            document.getElementById('retailPrice').value = '';
+            document.getElementById('discountValue').value = '0';
+            document.getElementById('productCode').focus();
+        }
+
+        // Clear entire form
+        function clearForm() {
+            if (confirm('Are you sure you want to clear the entire form?')) {
+                document.getElementById('supplier').value = '';
+                document.querySelector('#grnTable tbody').innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; color: #6c757d; padding: 30px;">
+                            No products added yet
+                        </td>
+                    </tr>
+                `;
+                clearProductForm();
+                updateTotals();
+                initializeForm();
+            }
+        }
+
+        // Save GRN
+        function saveGRN() {
+            const supplier = document.getElementById('supplier').value.trim();
+            const rows = document.querySelectorAll('#grnTable tbody tr');
+            
+            if (!supplier) {
+                showAlert('Please enter supplier name.');
+                return;
+            }
+            
+            if (rows.length === 1 && rows[0].cells.length === 1) {
+                showAlert('Please add at least one product.');
+                return;
+            }
+            
+            // Here you would typically send the data to your server
+            const grnData = {
+                grnNumber: document.getElementById('grnNumber').value,
+                purchaseDate: document.getElementById('purchaseDate').value,
+                supplier: supplier,
+                products: [],
+                grandTotal: document.getElementById('grandTotal').textContent
+            };
+            
+            // Collect product data
+            rows.forEach(row => {
+                if (row.cells.length > 1) {
+                    grnData.products.push({
+                        barcode: row.cells[0].textContent,
+                        productCode: row.cells[1].textContent,
+                        productName: row.cells[2].textContent,
+                        priceCode: row.cells[3].textContent,
+                        quantity: row.cells[4].textContent,
+                        purchasePrice: row.cells[5].textContent,
+                        sellingPrice: row.cells[6].textContent,
+                        retailPrice: row.cells[7].textContent,
+                        discount: row.cells[8].textContent,
+                        total: row.cells[9].textContent
+                    });
+                }
+            });
+            
+            console.log('GRN Data:', grnData);
+            showAlert('GRN saved successfully!', 'success');
+            
+            // Reset form for next entry
+            setTimeout(() => {
+                clearForm();
+            }, 1500);
+        }
+
+        // Add product
+        document.getElementById('addProduct').addEventListener('click', function() {
+            const barcode = document.getElementById('barcode').value.trim();
+            const productCode = document.getElementById('productCode').value.trim();
+            const productName = document.getElementById('productName').value.trim();
+            const priceCode = document.getElementById('priceCode').value.trim();
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
+            const sellingPrice = parseFloat(document.getElementById('sellingPrice').value);
+            const retailPrice = parseFloat(document.getElementById('retailPrice').value);
+            const discountType = document.getElementById('discountType').value;
+            const discountValue = parseFloat(document.getElementById('discountValue').value) || 0;
+            
+            // Validation
+            if (!productCode || !productName || !purchasePrice || purchasePrice <= 0 || 
+                !sellingPrice || sellingPrice <= 0 || !retailPrice || retailPrice <= 0) {
+                showAlert('Please fill all required fields with valid values.');
+                return;
+            }
+
+            if (quantity <= 0) {
+                showAlert('Quantity must be greater than 0.');
+                return;
+            }
+            
+            // Calculate discount and total
+            let discountText = '';
+            let discountAmount = 0;
+            let total = purchasePrice * quantity;
+            
+            if (discountValue > 0) {
+                if (discountType === 'percentage') {
+                    if (discountValue > 100) {
+                        showAlert('Percentage discount cannot exceed 100%.');
+                        return;
+                    }
+                    discountAmount = total * (discountValue / 100);
+                    discountText = discountValue + '%';
+                } else {
+                    discountAmount = discountValue;
+                    discountText = 'Rs ' + discountValue.toFixed(2);
+                }
+            } else {
+                discountText = '-';
+            }
+            
+            total -= discountAmount;
+            
+            // Remove empty message if exists
+            const tbody = document.querySelector('#grnTable tbody');
+            const emptyRow = tbody.querySelector('tr td[colspan="11"]');
+            if (emptyRow) {
+                emptyRow.closest('tr').remove();
+            }
+            
+            // Add row to table
+            const newRow = tbody.insertRow();
+            newRow.innerHTML = `
+                <td>${barcode || '-'}</td>
+                <td>${productCode}</td>
+                <td>${productName}</td>
+                <td>${priceCode || '-'}</td>
+                <td>${quantity}</td>
+                <td>${purchasePrice.toFixed(2)}</td>
+                <td>${sellingPrice.toFixed(2)}</td>
+                <td>${retailPrice.toFixed(2)}</td>
+                <td>${discountText}</td>
+                <td>${total.toFixed(2)}</td>
+                <td><button class="btn btn-danger remove-btn" type="button">Remove</button></td>
+            `;
+            
+            // Add remove functionality
+            newRow.querySelector('.remove-btn').addEventListener('click', function() {
+                if (confirm('Remove this product?')) {
+                    tbody.removeChild(newRow);
+                    
+                    if (tbody.children.length === 0) {
+                        const emptyRow = tbody.insertRow();
+                        emptyRow.innerHTML = `
+                            <td colspan="11" style="text-align: center; color: #6c757d; padding: 30px;">
+                                No products added yet
+                            </td>
+                        `;
+                    }
+                    
+                    updateTotals();
+                }
+            });
+            
+            clearProductForm();
+            updateTotals();
+        });
+
+        // Initialize form on page load
+        initializeForm();
+    </script>
+</body>
+</html>
