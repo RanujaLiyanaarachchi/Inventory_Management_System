@@ -1,503 +1,437 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InventoryPro - Sign In</title>
-    <link rel="icon" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/icons/box-seam-fill.svg" type="image/svg+xml">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        :root {
-            --primary: #4361ee;
-            --primary-dark: #3a0ca3;
-            --secondary: #7209b7;
-            --accent: #f72585;
-            --light: #f8f9fa;
-            --dark: #1e1e2c;
-            --card-bg: rgba(255, 255, 255, 0.95);
-            --input-bg: rgba(255, 255, 255, 0.9);
-        }
-        
-        body {
-            font-family: 'Outfit', sans-serif;
-            background: linear-gradient(135deg, #000428 0%, #004e92 100%);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .particles {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-        }
-        
-        .particle {
-            position: absolute;
-            border-radius: 50%;
-            opacity: 0.5;
-            animation: float 15s infinite ease-in-out;
-        }
-        
-        @keyframes float {
-            0%, 100% {
-                transform: translateY(0) translateX(0);
-            }
-            25% {
-                transform: translateY(-30px) translateX(30px);
-            }
-            50% {
-                transform: translateY(-15px) translateX(-40px);
-            }
-            75% {
-                transform: translateY(30px) translateX(25px);
-            }
-        }
-        
-        .back-button {
-            position: absolute;
-            top: 30px;
-            left: 30px;
-            background: rgba(255, 255, 255, 0.15);
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            z-index: 10;
-            -webkit-backdrop-filter: blur(5px);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .back-button:hover {
-            background: rgba(255, 255, 255, 0.25);
-            transform: translateX(-5px);
-        }
-        
-        .back-button svg {
-            fill: white;
-            width: 24px;
-            height: 24px;
-        }
-        
-        .container {
-            background-color: var(--card-bg);
-            border-radius: 24px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-            width: 90%;
-            max-width: 480px;
-            padding: 2.5rem;
-            position: relative;
-            z-index: 10;
-            overflow: hidden;
-            animation: fadeIn 0.8s ease-out forwards;
-            transform: translateY(20px);
-            opacity: 0;
-            text-align: center;
-        }
-        
-        @keyframes fadeIn {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .role-badge-container {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .role-badge {
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            color: white;
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            position: relative;
-            overflow: hidden;
-            animation: pulseRole 2s infinite alternate;
-            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
-            letter-spacing: 0.5px;
-        }
-        
-        @keyframes pulseRole {
-            0% {
-                box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
-                transform: scale(1);
-            }
-            100% {
-                box-shadow: 0 5px 20px rgba(67, 97, 238, 0.5);
-                transform: scale(1.05);
-            }
-        }
-        
-        .role-badge::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-            animation: shimmer 2s infinite;
-        }
-        
-        @keyframes shimmer {
-            to {
-                left: 100%;
-            }
-        }
-        
-        h1 {
-            font-size: 2.4rem;
-            margin-bottom: 3rem;
-            font-weight: 700;
-            color: var(--dark);
-            text-align: center;
-        }
-        
-        .form-group {
-            margin-bottom: 1.8rem;
-            text-align: left;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--dark);
-            font-size: 1.1rem;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px 16px;
-            background-color: var(--input-bg);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 12px;
-            font-family: 'Outfit', sans-serif;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
-        }
-        
-        .password-input-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-        
-        .password-input-wrapper input {
-            padding-right: 50px; /* Space for the eye icon */
-        }
-        
-        .toggle-password {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #777;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 8px;
-            z-index: 2;
-        }
-        
-        .toggle-password:focus {
-            outline: none;
-        }
-        
-        .signin-btn-container {
-            display: flex;
-            justify-content: center;
-        }
-        
-        button[type="submit"] {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            border: none;
-            border-radius: 12px;
-            color: white;
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
-        }
-        
-        button[type="submit"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(67, 97, 238, 0.3);
-        }
-        
-        button[type="submit"]::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            animation: shimmer 2s infinite;
-        }
-        
-        .glow {
-            position: absolute;
-            width: 150%;
-            height: 150%;
-            top: -25%;
-            left: -25%;
-            background: radial-gradient(
-                circle at center,
-                rgba(67, 97, 238, 0.08) 0%,
-                transparent 70%
-            );
-            z-index: -1;
-            opacity: 0;
-            animation: pulse 3s infinite ease-in-out;
-        }
-        
-        @keyframes pulse {
-            0% {
-                transform: scale(0.95);
-                opacity: 0.5;
-            }
-            50% {
-                transform: scale(1);
-                opacity: 0.8;
-            }
-            100% {
-                transform: scale(0.95);
-                opacity: 0.5;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 2rem;
-            }
-            
-            h1 {
-                font-size: 2.2rem;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .container {
-                padding: 1.8rem;
-            }
-            
-            h1 {
-                font-size: 1.8rem;
-            }
-            
-            .back-button {
-                top: 20px;
-                left: 20px;
-                width: 40px;
-                height: 40px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InventoryPro - Sign In</title>
+  <link rel="stylesheet" href="../app.css" />
+  <link rel="stylesheet" href="sign_in.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 </head>
-<body oncontextmenu="return false;">
-    <div class="particles" id="particles"></div>
-    
-    <a href="selection.html" class="back-button" title="Go back to selection">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-        </svg>
-    </a>
-    
-    <div class="container">
-        <div class="glow"></div>
-        <div class="role-badge-container">
-            <div class="role-badge" id="role-display">Admin</div>
+<body>
+  <div class="background-pattern"></div>
+  
+  <div class="signin-container">
+    <!-- Header Section -->
+    <div class="header">
+      <div class="logo-section">
+        <div class="logo-icon">
+          <i class="fas fa-boxes-stacked"></i>
         </div>
-        <h1>Sign In</h1>
-        
-        <form id="login-form">
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input 
-                    type="email" 
-                    id="email" 
-                    placeholder="Enter your email" 
-                    autocomplete="off" 
-                    required
-                >
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <div class="password-input-wrapper">
-                    <input 
-                        type="password" 
-                        id="password" 
-                        placeholder="Enter your password" 
-                        required
-                    >
-                    <button type="button" class="toggle-password" id="toggle-password" title="Toggle Password Visibility">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="signin-btn-container">
-                <button type="submit" id="login-button">Sign In</button>
-            </div>
-        </form>
+        <h1 class="app-title">Inventory<span>Pro</span></h1>
+      </div>
+      <p class="subtitle">Sign in to your account</p>
     </div>
 
-    <script>
-        // Disable right click
-        document.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            return false;
-        });
+    <!-- Selected Role Display -->
+    <div class="selected-role-display" id="selectedRoleDisplay">
+      <div class="role-info">
+        <div class="role-icon-display" id="roleIconDisplay">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="role-details">
+          <span class="role-label">Selected Role:</span>
+          <span class="role-name" id="roleName">Loading...</span>
+        </div>
+      </div>
+      <button class="change-role-btn" onclick="changeRole()">
+        <i class="fas fa-exchange-alt"></i> Change Role
+      </button>
+    </div>
+
+    <!-- Sign In Form -->
+    <div class="signin-form-container">
+      <form class="signin-form" id="signinForm">
+        <div class="form-group">
+          <label for="email">
+            <i class="fas fa-envelope"></i>
+            Email Address
+          </label>
+          <input 
+            type="email" 
+            id="email" 
+            name="email" 
+            required 
+            placeholder="Enter your email address"
+            autocomplete="email"
+          />
+          <span class="error-message" id="emailError"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="password">
+            <i class="fas fa-lock"></i>
+            Password
+          </label>
+          <div class="password-input-container">
+            <input 
+              type="password" 
+              id="password" 
+              name="password" 
+              required 
+              placeholder="Enter your password"
+              autocomplete="current-password"
+            />
+            <button type="button" class="toggle-password" onclick="togglePassword()">
+              <i class="fas fa-eye" id="passwordToggleIcon"></i>
+            </button>
+          </div>
+          <span class="error-message" id="passwordError"></span>
+        </div>
+
+        <div class="form-options">
+          <label class="remember-me">
+            <input type="checkbox" id="rememberMe">
+            <span class="checkmark"></span>
+            Remember me
+          </label>
+        </div>
+
+        <button type="submit" class="signin-btn" id="signinBtn">
+          <i class="fas fa-sign-in-alt"></i>
+          Sign In
+        </button>
+      </form>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-content">
+        <div class="loading-spinner">
+          <i class="fas fa-spinner fa-spin"></i>
+        </div>
+        <p id="loadingText">Signing you in...</p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer-note">
+      <i class="fas fa-shield-alt"></i>
+      <span>Secure authentication powered by Firebase</span>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div class="modal-overlay" id="errorModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>
+          <i class="fas fa-exclamation-triangle"></i>
+          Authentication Error
+        </h3>
+        <button class="close-modal" onclick="closeErrorModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="errorMessage">An error occurred during sign in.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="closeErrorModal()">Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      updateDoc
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBKjE2SmRvgQczTmcKZrEFD0pyjLBMD4gg",
+      authDomain: "inventorypro-lk.firebaseapp.com",
+      projectId: "inventorypro-lk",
+      storageBucket: "inventorypro-lk.firebasestorage.app",
+      messagingSenderId: "594998429191",
+      appId: "1:594998429191:web:518f4b7f88eb7c0a2d0ca2",
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Security features
+    document.addEventListener("contextmenu", (e) => e.preventDefault());
+    document.addEventListener("keydown", function (e) {
+      if (
+        (e.ctrlKey &&
+          (e.key === "a" ||
+            e.key === "c" ||
+            e.key === "x" ||
+            e.key === "v" ||
+            e.key === "s" ||
+            e.key === "p" ||
+            e.key === "u")) ||
+        e.key === "F12" ||
+        (e.ctrlKey && e.shiftKey && e.key === "I")
+      ) {
+        e.preventDefault();
+      }
+    });
+
+    // Check if user is already authenticated and redirect
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is already signed in
+        const userSession = localStorage.getItem("userSession") || sessionStorage.getItem("userSession");
+        const selectedRole = localStorage.getItem("selectedRole");
         
-        // Disable key combinations that could bypass right-click restriction
-        document.addEventListener('keydown', function(e) {
-            // Prevent F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
-            if (
-                e.keyCode === 123 || 
-                (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || 
-                (e.ctrlKey && e.keyCode === 85)
-            ) {
-                e.preventDefault();
-                return false;
-            }
-        });
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            // Create floating particles
-            const particlesContainer = document.getElementById('particles');
-            const particleCount = 12;
-            const colors = ['#4361ee', '#3a0ca3', '#7209b7', '#f72585'];
+        if (userSession && selectedRole) {
+          // Redirect to dashboard if already authenticated
+          window.location.href = "dashboard.html";
+        }
+      }
+    });
+
+    // Role icons mapping
+    const roleIcons = {
+      admin: "fas fa-crown",
+      manager: "fas fa-user-tie",
+      seller: "fas fa-shopping-cart",
+      warehouse: "fas fa-warehouse",
+      accountant: "fas fa-calculator",
+      viewer: "fas fa-eye",
+      cashier: "fas fa-cash-register",
+    };
+
+    // DOM elements
+    const signinForm = document.getElementById("signinForm");
+    const loadingOverlay = document.getElementById("loadingOverlay");
+    const errorModal = document.getElementById("errorModal");
+    const selectedRoleDisplay = document.getElementById("selectedRoleDisplay");
+
+    // Initialize page
+    function initializePage() {
+      const selectedRole = localStorage.getItem("selectedRole");
+      const selectedRoleName = localStorage.getItem("selectedRoleName");
+
+      if (!selectedRole) {
+        // Redirect back to role selection if no role selected
+        window.location.href = "selection.html";
+        return;
+      }
+
+      // Display selected role
+      document.getElementById("roleName").textContent = selectedRoleName || selectedRole;
+      const roleIcon = roleIcons[selectedRole] || "fas fa-user";
+      document.getElementById("roleIconDisplay").innerHTML = `<i class="${roleIcon}"></i>`;
+    }
+
+    // Form submission
+    signinForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const rememberMe = document.getElementById("rememberMe").checked;
+
+      // Clear previous errors
+      clearErrors();
+
+      // Validate inputs
+      if (!validateEmail(email)) {
+        showError("emailError", "Please enter a valid email address");
+        return;
+      }
+
+      if (password.length < 6) {
+        showError("passwordError", "Password must be at least 6 characters");
+        return;
+      }
+
+      // Show loading
+      showLoading("Signing you in...");
+
+      try {
+        // Sign in with Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Update loading text
+        document.getElementById("loadingText").textContent = "Verifying credentials...";
+
+        const selectedRole = localStorage.getItem("selectedRole");
+
+        // Try to get or create user profile in Firestore
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          let userData = {};
+
+          if (!userDoc.exists()) {
+            // Create user profile if it doesn't exist
+            userData = {
+              email: user.email,
+              roles: [selectedRole], // Give them access to their selected role
+              createdAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+              lastRole: selectedRole,
+              rememberMe: rememberMe,
+              displayName: user.displayName || user.email.split('@')[0]
+            };
+
+            await setDoc(doc(db, "users", user.uid), userData);
+            console.log("Created new user profile");
+          } else {
+            userData = userDoc.data();
             
-            for (let i = 0; i < particleCount; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                
-                // Random properties
-                const size = Math.random() * 80 + 40;
-                particle.style.width = `${size}px`;
-                particle.style.height = `${size}px`;
-                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-                particle.style.left = `${Math.random() * 100}%`;
-                particle.style.top = `${Math.random() * 100}%`;
-                particle.style.opacity = `${Math.random() * 0.08 + 0.02}`;
-                
-                // Animation delay
-                particle.style.animationDelay = `${Math.random() * 5}s`;
-                particle.style.animationDuration = `${Math.random() * 10 + 10}s`;
-                
-                particlesContainer.appendChild(particle);
-            }
-            
-            // Toggle password visibility
-            const togglePassword = document.getElementById('toggle-password');
-            const passwordInput = document.getElementById('password');
-            
-            togglePassword.addEventListener('click', function() {
-                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                passwordInput.setAttribute('type', type);
-                
-                // Change the icon
-                this.innerHTML = type === 'password' ? 
-                    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                    </svg>` : 
-                    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
-                    </svg>`;
+            // Update existing user profile
+            await updateDoc(doc(db, "users", user.uid), {
+              lastLogin: new Date().toISOString(),
+              lastRole: selectedRole,
+              rememberMe: rememberMe
             });
-            
-            // Get the role from URL parameter
-            const urlParams = new URLSearchParams(window.location.search);
-            const role = urlParams.get('role') || localStorage.getItem('selectedRole') || 'Admin';
-            
-            // Update role display with nice capitalization
-            const displayRole = role.charAt(0).toUpperCase() + role.slice(1);
-            document.getElementById('role-display').textContent = displayRole;
-            
-            // Apply a special animation for the role badge
-            const roleBadge = document.getElementById('role-display');
-            roleBadge.style.animation = 'fadeIn 0.5s ease-out forwards, pulseRole 2s infinite alternate 0.5s';
-            
-            // Form submission
-            document.getElementById('login-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-                
-                // Add login button animation
-                const loginButton = document.getElementById('login-button');
-                loginButton.innerHTML = `
-                    <span>Signing In...</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; animation: spin 1s linear infinite;">
-                        <circle cx="12" cy="12" r="10" stroke-opacity="0.3"></circle>
-                        <path d="M12 2a10 10 0 0 1 10 10"></path>
-                    </svg>
-                `;
-                loginButton.style.display = "flex";
-                loginButton.style.alignItems = "center";
-                loginButton.style.justifyContent = "center";
-                loginButton.style.pointerEvents = 'none';
-                
-                // Simulate authentication (replace with actual authentication)
-                setTimeout(() => {
-                    // Redirect to dashboard based on role
-                    window.location.href = `dashboard.html`;
-                }, 1500);
-            });
-        });
+            console.log("Updated existing user profile");
+          }
+
+          // Check if user has permission for selected role (optional)
+          if (userData.roles && !userData.roles.includes(selectedRole)) {
+            console.warn(`User doesn't have ${selectedRole} role, but allowing access anyway`);
+          }
+
+        } catch (firestoreError) {
+          console.warn("Firestore error (continuing anyway):", firestoreError);
+          // Continue with authentication even if Firestore fails
+        }
+
+        // Store user session data with authentication token
+        const sessionData = {
+          userId: user.uid,
+          email: user.email,
+          role: selectedRole,
+          roleName: localStorage.getItem("selectedRoleName"),
+          loginTime: new Date().toISOString(),
+          sessionId: Date.now().toString(),
+          displayName: user.displayName || user.email.split('@')[0],
+          authenticated: true,
+          authToken: await user.getIdToken() // Get Firebase auth token
+        };
+
+        // Store in localStorage/sessionStorage based on remember me
+        if (rememberMe) {
+          localStorage.setItem("userSession", JSON.stringify(sessionData));
+          localStorage.setItem("authToken", sessionData.authToken);
+        } else {
+          sessionStorage.setItem("userSession", JSON.stringify(sessionData));
+          sessionStorage.setItem("authToken", sessionData.authToken);
+        }
+
+        // Update loading text
+        document.getElementById("loadingText").textContent = "Redirecting to dashboard...";
+
+        // Redirect to single dashboard page
+        setTimeout(() => {
+          window.location.href = "dashboard.html";
+        }, 1500);
+
+      } catch (error) {
+        hideLoading();
+        console.error("Sign in error:", error);
         
-        // Add keyframes for loading spinner
-        document.head.insertAdjacentHTML('beforeend', `
-            <style>
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-            </style>
-        `);
-    </script>
+        let errorMessage = "An error occurred during sign in.";
+        
+        switch (error.code) {
+          case "auth/user-not-found":
+            errorMessage = "No account found with this email address.";
+            break;
+          case "auth/wrong-password":
+            errorMessage = "Incorrect password. Please try again.";
+            break;
+          case "auth/invalid-email":
+            errorMessage = "Please enter a valid email address.";
+            break;
+          case "auth/user-disabled":
+            errorMessage = "This account has been disabled. Please contact administrator.";
+            break;
+          case "auth/too-many-requests":
+            errorMessage = "Too many failed attempts. Please try again later.";
+            break;
+          case "auth/network-request-failed":
+            errorMessage = "Network error. Please check your connection and try again.";
+            break;
+          case "auth/invalid-credential":
+            errorMessage = "Invalid email or password. Please try again.";
+            break;
+          default:
+            errorMessage = error.message;
+        }
+        
+        showErrorModal(errorMessage);
+      }
+    });
+
+    // Utility functions
+    function validateEmail(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+
+    function showError(elementId, message) {
+      document.getElementById(elementId).textContent = message;
+    }
+
+    function clearErrors() {
+      document.querySelectorAll(".error-message").forEach(el => el.textContent = "");
+    }
+
+    function showLoading(text) {
+      document.getElementById("loadingText").textContent = text;
+      loadingOverlay.style.display = "flex";
+    }
+
+    function hideLoading() {
+      loadingOverlay.style.display = "none";
+    }
+
+    function showErrorModal(message) {
+      document.getElementById("errorMessage").textContent = message;
+      errorModal.style.display = "flex";
+    }
+
+    // Global functions for UI interactions
+    window.togglePassword = function() {
+      const passwordInput = document.getElementById("password");
+      const toggleIcon = document.getElementById("passwordToggleIcon");
+      
+      if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        toggleIcon.className = "fas fa-eye-slash";
+      } else {
+        passwordInput.type = "password";
+        toggleIcon.className = "fas fa-eye";
+      }
+    };
+
+    window.changeRole = function() {
+      window.location.href = "selection.html";
+    };
+
+    window.closeErrorModal = function() {
+      errorModal.style.display = "none";
+    };
+
+    // Close error modal when clicking outside
+    errorModal.addEventListener("click", function(e) {
+      if (e.target === errorModal) {
+        closeErrorModal();
+      }
+    });
+
+    // Initialize page when DOM is loaded
+    document.addEventListener("DOMContentLoaded", initializePage);
+  </script>
 </body>
 </html>
