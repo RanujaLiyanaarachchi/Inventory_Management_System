@@ -36,7 +36,7 @@
                     <label for="barcode">Barcode</label>
                     <div class="barcode-container">
                         <input type="text" id="barcode" placeholder="Scan or enter barcode">
-                        <button class="barcode-btn" type="button">Scan</button>
+                        <button class="barcode-btn" type="button" onclick="scanBarcode()">Scan</button>
                     </div>
                 </div>
                 <div class="col">
@@ -110,20 +110,18 @@
                         <th>Selling Price (Rs)</th>
                         <th>Retail Price (Rs)</th>
                         <th>Discount</th>
-                        <td colspan="11" class="empty-message">
+                        <th>Total</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td colspan="11" style="text-align: center; color: #6c757d; padding: 30px;">
-                            No products added yet
-                        <td colspan="9" class="grand-total-label"><strong>GRAND TOTAL:</strong></td>
+                    <tr class="empty-row">
+                        <td colspan="11">No products added yet</td>
                     </tr>
                 </tbody>
                 <tfoot>
                     <tr class="grand-total-row">
-                        <td colspan="9" style="text-align: right;"><strong>GRAND TOTAL:</strong></td>
+                        <td colspan="9"><strong>GRAND TOTAL:</strong></td>
                         <td><strong>Rs <span id="grandTotal">0.00</span></strong></td>
                         <td></td>
                     </tr>
@@ -132,15 +130,42 @@
         </div>
         
         <div class="btn-container">
-            <button class="btn btn-secondary" type="button" onclick="clearForm()">Clear Form</button>
-            <button class="btn btn-success" type="button" onclick="saveGRN()">Save GRN</button>
+            <button class="btn btn-secondary" type="button" id="clear-btn">Clear Form</button>
+            <button class="btn btn-success" type="button" id="save-btn">Save GRN</button>
+            <button class="btn btn-info" type="button" id="load-btn">Load GRN</button>
         </div>
     </div>
 
-    <script>
+    <!-- Firebase SDK v9 (Modular) -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, doc, setDoc, increment, serverTimestamp, writeBatch, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBKjE2SmRvgQczTmcKZrEFD0pyjLBMD4gg",
+            authDomain: "inventorypro-lk.firebaseapp.com",
+            projectId: "inventorypro-lk",
+            storageBucket: "inventorypro-lk.appspot.com",
+            messagingSenderId: "594998429191",
+            appId: "1:594998429191:web:518f4b7f88eb7c0a2d0ca2"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Global variables
+        let currentUser = null;
+        let grnProducts = [];
+
         // Generate GRN number
         function generateGRNNumber() {
-            const timestamp = Date.now().toString().slice(-6);
+            const now = new Date();
+            const timestamp = now.getTime().toString().slice(-8);
             const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
             return `GRN-${timestamp}-${random}`;
         }
@@ -151,25 +176,21 @@
             
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('purchaseDate').value = today;
+            
+            // Clear products array
+            grnProducts = [];
+            updateTable();
+            updateTotals();
         }
 
-        // Update totals
-        function updateTotals() {
-            const rows = document.querySelectorAll('#grnTable tbody tr');
-            let grandTotal = 0;
-            
-            rows.forEach(row => {
-                if (row.cells.length > 1) {
-                    grandTotal += parseFloat(row.cells[9].textContent);
-                }
-            });
-            
-            document.getElementById('summaryTotal').textContent = grandTotal.toFixed(2);
-            document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
-        }
-
-        // Show alert
+        // Show alert message
         function showAlert(message, type = 'error') {
+            // Remove existing alerts
+            const existingAlert = document.querySelector('.alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type}`;
             alertDiv.textContent = message;
@@ -177,9 +198,48 @@
             const container = document.querySelector('.container');
             container.insertBefore(alertDiv, container.firstChild);
             
+            // Auto remove after 5 seconds
             setTimeout(() => {
-                alertDiv.remove();
-            }, 3000);
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Update table display
+        function updateTable() {
+            const tbody = document.querySelector('#grnTable tbody');
+            tbody.innerHTML = '';
+
+            if (grnProducts.length === 0) {
+                const emptyRow = tbody.insertRow();
+                emptyRow.className = 'empty-row';
+                emptyRow.innerHTML = '<td colspan="11">No products added yet</td>';
+            } else {
+                grnProducts.forEach((product, index) => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td>${product.barcode || '-'}</td>
+                        <td>${product.productCode}</td>
+                        <td>${product.productName}</td>
+                        <td>${product.priceCode || '-'}</td>
+                        <td>${product.quantity}</td>
+                        <td>${product.purchasePrice.toFixed(2)}</td>
+                        <td>${product.sellingPrice.toFixed(2)}</td>
+                        <td>${product.retailPrice.toFixed(2)}</td>
+                        <td>${product.discountText}</td>
+                        <td>${product.total.toFixed(2)}</td>
+                        <td><button class="btn btn-danger remove-btn" onclick="removeProduct(${index})">Remove</button></td>
+                    `;
+                });
+            }
+        }
+
+        // Update totals
+        function updateTotals() {
+            const grandTotal = grnProducts.reduce((sum, product) => sum + product.total, 0);
+            document.getElementById('summaryTotal').textContent = grandTotal.toFixed(2);
+            document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
         }
 
         // Clear product form
@@ -193,6 +253,7 @@
             document.getElementById('sellingPrice').value = '';
             document.getElementById('retailPrice').value = '';
             document.getElementById('discountValue').value = '0';
+            document.getElementById('discountType').value = 'percentage';
             document.getElementById('productCode').focus();
         }
 
@@ -200,72 +261,27 @@
         function clearForm() {
             if (confirm('Are you sure you want to clear the entire form?')) {
                 document.getElementById('supplier').value = '';
-                document.querySelector('#grnTable tbody').innerHTML = `
-                    <tr>
-                        <td colspan="11" style="text-align: center; color: #6c757d; padding: 30px;">
-                            No products added yet
-                        </td>
-                    </tr>
-                `;
-                clearProductForm();
+                grnProducts = [];
+                updateTable();
                 updateTotals();
+                clearProductForm();
                 initializeForm();
+                showAlert('Form cleared successfully!', 'success');
             }
         }
 
-        // Save GRN
-        function saveGRN() {
-            const supplier = document.getElementById('supplier').value.trim();
-            const rows = document.querySelectorAll('#grnTable tbody tr');
-            
-            if (!supplier) {
-                showAlert('Please enter supplier name.');
-                return;
+        // Remove product
+        window.removeProduct = function(index) {
+            if (confirm('Remove this product?')) {
+                grnProducts.splice(index, 1);
+                updateTable();
+                updateTotals();
+                showAlert('Product removed successfully!', 'success');
             }
-            
-            if (rows.length === 1 && rows[0].cells.length === 1) {
-                showAlert('Please add at least one product.');
-                return;
-            }
-            
-            // Here you would typically send the data to your server
-            const grnData = {
-                grnNumber: document.getElementById('grnNumber').value,
-                purchaseDate: document.getElementById('purchaseDate').value,
-                supplier: supplier,
-                products: [],
-                grandTotal: document.getElementById('grandTotal').textContent
-            };
-            
-            // Collect product data
-            rows.forEach(row => {
-                if (row.cells.length > 1) {
-                    grnData.products.push({
-                        barcode: row.cells[0].textContent,
-                        productCode: row.cells[1].textContent,
-                        productName: row.cells[2].textContent,
-                        priceCode: row.cells[3].textContent,
-                        quantity: row.cells[4].textContent,
-                        purchasePrice: row.cells[5].textContent,
-                        sellingPrice: row.cells[6].textContent,
-                        retailPrice: row.cells[7].textContent,
-                        discount: row.cells[8].textContent,
-                        total: row.cells[9].textContent
-                    });
-                }
-            });
-            
-            console.log('GRN Data:', grnData);
-            showAlert('GRN saved successfully!', 'success');
-            
-            // Reset form for next entry
-            setTimeout(() => {
-                clearForm();
-            }, 1500);
         }
 
         // Add product
-        document.getElementById('addProduct').addEventListener('click', function() {
+        function addProduct() {
             const barcode = document.getElementById('barcode').value.trim();
             const productCode = document.getElementById('productCode').value.trim();
             const productName = document.getElementById('productName').value.trim();
@@ -278,19 +294,40 @@
             const discountValue = parseFloat(document.getElementById('discountValue').value) || 0;
             
             // Validation
-            if (!productCode || !productName || !purchasePrice || purchasePrice <= 0 || 
-                !sellingPrice || sellingPrice <= 0 || !retailPrice || retailPrice <= 0) {
-                showAlert('Please fill all required fields with valid values.');
+            if (!productCode || !productName) {
+                showAlert('Product Code and Product Name are required.');
                 return;
             }
 
-            if (quantity <= 0) {
-                showAlert('Quantity must be greater than 0.');
+            if (isNaN(purchasePrice) || purchasePrice <= 0) {
+                showAlert('Purchase Price must be a valid number greater than 0.');
+                return;
+            }
+
+            if (isNaN(sellingPrice) || sellingPrice <= 0) {
+                showAlert('Selling Price must be a valid number greater than 0.');
+                return;
+            }
+
+            if (isNaN(retailPrice) || retailPrice <= 0) {
+                showAlert('Retail Price must be a valid number greater than 0.');
+                return;
+            }
+
+            if (isNaN(quantity) || quantity <= 0) {
+                showAlert('Quantity must be a valid number greater than 0.');
+                return;
+            }
+
+            // Check if product code already exists
+            const existingProduct = grnProducts.find(p => p.productCode === productCode);
+            if (existingProduct) {
+                showAlert('Product with this code already exists in the list.');
                 return;
             }
             
             // Calculate discount and total
-            let discountText = '';
+            let discountText = '-';
             let discountAmount = 0;
             let total = purchasePrice * quantity;
             
@@ -306,59 +343,190 @@
                     discountAmount = discountValue;
                     discountText = 'Rs ' + discountValue.toFixed(2);
                 }
-            } else {
-                discountText = '-';
+                total -= discountAmount;
             }
             
-            total -= discountAmount;
-            
-            // Remove empty message if exists
-            const tbody = document.querySelector('#grnTable tbody');
-            const emptyRow = tbody.querySelector('tr td[colspan="11"]');
-            if (emptyRow) {
-                emptyRow.closest('tr').remove();
-            }
-            
-            // Add row to table
-            const newRow = tbody.insertRow();
-            newRow.innerHTML = `
-                <td>${barcode || '-'}</td>
-                <td>${productCode}</td>
-                <td>${productName}</td>
-                <td>${priceCode || '-'}</td>
-                <td>${quantity}</td>
-                <td>${purchasePrice.toFixed(2)}</td>
-                <td>${sellingPrice.toFixed(2)}</td>
-                <td>${retailPrice.toFixed(2)}</td>
-                <td>${discountText}</td>
-                <td>${total.toFixed(2)}</td>
-                <td><button class="btn btn-danger remove-btn" type="button">Remove</button></td>
-            `;
-            
-            // Add remove functionality
-            newRow.querySelector('.remove-btn').addEventListener('click', function() {
-                if (confirm('Remove this product?')) {
-                    tbody.removeChild(newRow);
-                    
-                    if (tbody.children.length === 0) {
-                        const emptyRow = tbody.insertRow();
-                        emptyRow.innerHTML = `
-                            <td colspan="11" style="text-align: center; color: #6c757d; padding: 30px;">
-                                No products added yet
-                            </td>
-                        `;
-                    }
-                    
-                    updateTotals();
-                }
-            });
-            
-            clearProductForm();
+            // Add product to array
+            const product = {
+                barcode,
+                productCode,
+                productName,
+                priceCode,
+                quantity,
+                purchasePrice,
+                sellingPrice,
+                retailPrice,
+                discountType,
+                discountValue,
+                discountText,
+                discountAmount,
+                total
+            };
+
+            grnProducts.push(product);
+            updateTable();
             updateTotals();
+            clearProductForm();
+            showAlert('Product added successfully!', 'success');
+        }
+
+        // Save GRN to Firebase
+        async function saveGRN() {
+            const saveBtn = document.getElementById('save-btn');
+            const originalText = saveBtn.textContent;
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+            
+            try {
+                const supplier = document.getElementById('supplier').value.trim();
+                const purchaseDate = document.getElementById('purchaseDate').value;
+                const grnNumber = document.getElementById('grnNumber').value;
+                
+                // Validation
+                if (!supplier) {
+                    showAlert('Please enter supplier name.');
+                    return;
+                }
+                
+                if (!purchaseDate) {
+                    showAlert('Please select purchase date.');
+                    return;
+                }
+                
+                if (grnProducts.length === 0) {
+                    showAlert('Please add at least one product.');
+                    return;
+                }
+
+                if (!currentUser) {
+                    showAlert('User not authenticated. Please login again.');
+                    return;
+                }
+                
+                const grandTotal = grnProducts.reduce((sum, product) => sum + product.total, 0);
+                
+                // Prepare GRN data
+                const grnData = {
+                    grnNumber,
+                    purchaseDate,
+                    supplier,
+                    products: grnProducts,
+                    grandTotal,
+                    createdBy: currentUser.uid,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    status: 'active'
+                };
+                
+                // Start batch write
+                const batch = writeBatch(db);
+                
+                // Add GRN document
+                const grnRef = doc(collection(db, 'grns'));
+                batch.set(grnRef, grnData);
+                
+                // Update inventory for each product
+                grnProducts.forEach(product => {
+                    const productRef = doc(db, 'products', product.productCode);
+                    batch.set(productRef, {
+                        barcode: product.barcode || '',
+                        productCode: product.productCode,
+                        productName: product.productName,
+                        priceCode: product.priceCode || '',
+                        purchasePrice: product.purchasePrice,
+                        sellingPrice: product.sellingPrice,
+                        retailPrice: product.retailPrice,
+                        stock: increment(product.quantity),
+                        lastUpdated: serverTimestamp(),
+                        updatedBy: currentUser.uid
+                    }, { merge: true });
+                });
+                
+                // Commit the batch
+                await batch.commit();
+                
+                showAlert('GRN saved successfully!', 'success');
+                console.log('GRN saved with ID:', grnRef.id);
+                
+                // Reset form after successful save
+                setTimeout(() => {
+                    clearForm();
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error saving GRN:', error);
+                showAlert('Error saving GRN: ' + error.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalText;
+            }
+        }
+
+        // Load recent GRNs
+        async function loadGRNs() {
+            try {
+                const q = query(collection(db, 'grns'), orderBy('createdAt', 'desc'), limit(10));
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) {
+                    showAlert('No GRNs found.', 'info');
+                    return;
+                }
+
+                let grnList = 'Recent GRNs:\n';
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    grnList += `${data.grnNumber} - ${data.supplier} - Rs ${data.grandTotal.toFixed(2)}\n`;
+                });
+
+                alert(grnList);
+            } catch (error) {
+                console.error('Error loading GRNs:', error);
+                showAlert('Error loading GRNs: ' + error.message);
+            }
+        }
+
+        // Barcode scan function (placeholder)
+        window.scanBarcode = function() {
+            showAlert('Barcode scanning feature will be implemented with a barcode scanner library.', 'info');
+        }
+
+        // Event listeners
+        document.getElementById('addProduct').addEventListener('click', addProduct);
+        document.getElementById('clear-btn').addEventListener('click', clearForm);
+        document.getElementById('save-btn').addEventListener('click', saveGRN);
+        document.getElementById('load-btn').addEventListener('click', loadGRNs);
+
+        // Enter key support for product form
+        document.getElementById('retailPrice').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addProduct();
+            }
         });
 
-        // Initialize form on page load
-        initializeForm();
+        // Auto-generate GRN number on date change
+        document.getElementById('purchaseDate').addEventListener('change', function() {
+            document.getElementById('grnNumber').value = generateGRNNumber();
+        });
+
+        // Initialize Firebase Auth state observer
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log('User authenticated:', user.email);
+                initializeForm();
+            } else {
+                currentUser = null;
+                console.log('User not authenticated');
+                // Redirect to login if not authenticated
+                // window.location.href = 'login.html';
+            }
+        });
+
+        // Initialize form when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeForm();
+        });
     </script>
 </body>
 </html>
