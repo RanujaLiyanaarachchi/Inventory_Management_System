@@ -1,785 +1,454 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Invoice Management System</title>
-  <link rel="stylesheet" href="invoice.css">
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <!-- Firebase SDKs -->
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
-
-    // Firebase configuration - replace with your actual values
-    const firebaseConfig = {
-      apiKey: "AIzaSyBKjE2SmRvgQczTmcKZrEFD0pyjLBMD4gg",
-      authDomain: "inventorypro-lk.firebaseapp.com",
-      projectId: "inventorypro-lk",
-      storageBucket: "inventorypro-lk.appspot.com",
-      messagingSenderId: "594998429191",
-      appId: "1:594998429191:web:518f4b7f88eb7c0a2d0ca2"
-    };
-
-    try {
-      // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-      
-      console.log("Firebase connected successfully!");
-      
-      // Make db available globally if needed
-      window.db = db;
-      window.Timestamp = Timestamp;
-      window.deleteDoc = deleteDoc;
-      window.doc = doc;
-      
-    } catch (error) {
-      console.error("Firebase initialization error:", error);
-      alert("Failed to connect to database. Please try again later.");
-    }
-
-    // Test function
-    async function testConnection() {
-      try {
-        const testCol = collection(db, 'test');
-        await addDoc(testCol, { test: new Date().toISOString() });
-        console.log("Database write successful!");
-      } catch (error) {
-        console.error("Database error:", error);
-      }
-    }
-    testConnection();
-
-    $(document).ready(function() {
-      // Tab navigation
-      $('.tab-btn').click(function() {
-        const tabId = $(this).data('tab');
-        $('.tab-btn').removeClass('active');
-        $(this).addClass('active');
-        $('.tab-content').removeClass('active');
-        $(`#${tabId}`).addClass('active');
-      });
-
-      // Payment method selection
-      $('#payment-method').change(function() {
-        $('.payment-details').hide();
-        const method = $(this).val();
-        $(`#${method}-payment`).show();
-      });
-
-      // Cash received calculation
-      $('#cash-received').on('input', function() {
-        const total = parseFloat($('#total').text()) || 0;
-        const received = parseFloat($(this).val()) || 0;
-        const balance = received - total;
-        $('#balance').val(balance.toFixed(2));
-      });
-
-      // Initialize buttons
-      $('#add-product').click(addProductToInvoice);
-      $('#generate-invoice').click(generateInvoice);
-      $('#search-btn').click(loadInvoiceList);
-      $('#search-invoice-btn').click(searchInvoiceForReturn);
-      $('#process-return').click(processReturn);
-      $('#cancel-return').click(cancelReturn);
-      
-      // Load initial invoice list
-      loadInvoiceList();
-
-      // Add product to invoice
-      function addProductToInvoice() {
-        const productCode = $('#product-code').val();
-        const productName = $('#product-name').val();
-        const quantity = parseInt($('#quantity').val());
-        const availableQty = parseInt($('#available-qty').val());
-        const price = parseFloat($('#price').val());
-        const discountType = $('#discount-type').val();
-        const discountValue = parseFloat($('#discount-value').val()) || 0;
-
-        if (!productCode || quantity <= 0 || quantity > availableQty) {
-          alert('Invalid product or quantity');
-          return;
-        }
-
-        // Calculate discounted price based on discount type
-        let discountedPrice = price;
-        if (discountType === 'percentage') {
-          discountedPrice = price - (price * discountValue / 100);
-        } else {
-          discountedPrice = price - discountValue;
-          if (discountedPrice < 0) discountedPrice = 0;
-        }
-
-        const total = quantity * discountedPrice;
-
-        const row = `
-          <tr data-code="${productCode}">
-            <td>${$('#invoice-table tbody tr').length + 1}</td>
-            <td>${productCode}</td>
-            <td>${productName}</td>
-            <td>${quantity}</td>
-            <td>${price.toFixed(2)}</td>
-            <td>${discountType === 'percentage' ? discountValue + '%' : 'Rs ' + discountValue.toFixed(2)}</td>
-            <td>${total.toFixed(2)}</td>
-            <td><button class="remove-item">Remove</button></td>
-          </tr>`;
-        $('#invoice-table tbody').append(row);
-        calculateTotals();
-        clearProductFields();
-
-        $('.remove-item').off('click').click(function() {
-          $(this).closest('tr').remove();
-          renumberRows();
-          calculateTotals();
-        });
-      }
-
-      // Calculate invoice totals
-      function calculateTotals() {
-        let subtotal = 0;
-        $('#invoice-table tbody tr').each(function() {
-          subtotal += parseFloat($(this).find('td:eq(6)').text());
-        });
-        const total = subtotal;
-        $('#subtotal').text(subtotal.toFixed(2));
-        $('#total').text(total.toFixed(2));
-      }
-
-      // Renumber table rows
-      function renumberRows() {
-        $('#invoice-table tbody tr').each(function(index) {
-          $(this).find('td:first').text(index + 1);
-        });
-      }
-
-      // Clear product fields
-      function clearProductFields() {
-        $('#barcode').val('').focus();
-        $('#product-code').val('');
-        $('#product-name').val('');
-        $('#available-qty').val('');
-        $('#price').val('');
-        $('#quantity').val(1);
-        $('#discount-type').val('percentage');
-        $('#discount-value').val(0);
-      }
-
-      // Generate new invoice
-      async function generateInvoice() {
-        const customerName = $('#customer-name').val();
-        const customerPhone = $('#customer-phone').val();
-        const paymentMethod = $('#payment-method').val();
-        const items = [];
-
-        $('#invoice-table tbody tr').each(function() {
-          const discountText = $(this).find('td:eq(5)').text();
-          const isPercentage = discountText.includes('%');
-          const discountValue = parseFloat(discountText.replace('Rs ', '').replace('%', ''));
-          
-          items.push({
-            productCode: $(this).data('code'),
-            productName: $(this).find('td:eq(2)').text(),
-            quantity: parseInt($(this).find('td:eq(3)').text()),
-            price: parseFloat($(this).find('td:eq(4)').text()),
-            discountType: isPercentage ? 'percentage' : 'fixed',
-            discountValue: discountValue,
-            total: parseFloat($(this).find('td:eq(6)').text())
-          });
-        });
-
-        if (items.length === 0) {
-          alert('No products added!');
-          return;
-        }
-
-        const invoiceNumber = 'INV-' + Date.now();
-        const invoiceData = {
-          invoiceNumber,
-          customerName,
-          customerPhone,
-          paymentMethod,
-          subtotal: parseFloat($('#subtotal').text()),
-          total: parseFloat($('#total').text()),
-          items,
-          createdAt: Timestamp.now(),
-          status: 'completed'
-        };
-
-        try {
-          await addDoc(collection(db, 'invoices'), invoiceData);
-          alert(`Invoice ${invoiceNumber} created!`);
-          clearInvoiceForm();
-          loadInvoiceList();
-          $('.tab-btn[data-tab="invoice-list"]').click();
-        } catch (e) {
-          console.error('Error adding document: ', e);
-          alert('Error creating invoice. Please try again.');
-        }
-      }
-
-      // Clear invoice form
-      function clearInvoiceForm() {
-        $('#customer-name').val('');
-        $('#customer-phone').val('');
-        $('#invoice-table tbody').empty();
-        $('#subtotal').text('0.00');
-        $('#total').text('0.00');
-        $('#cash-received').val('');
-        $('#balance').val('');
-      }
-
-      // Load invoice list
-      async function loadInvoiceList() {
-        const tbody = $('#invoices-table tbody');
-        tbody.empty();
-        const searchTerm = $('#search-invoice').val().toLowerCase();
-        const dateFrom = $('#date-from').val();
-        const dateTo = $('#date-to').val();
-        
-        const q = collection(db, 'invoices');
-        const snapshot = await getDocs(q);
-        
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          const invoiceDate = data.createdAt.toDate();
-          
-          // Filter by search term
-          const matchSearch = !searchTerm || 
-            data.invoiceNumber.toLowerCase().includes(searchTerm) || 
-            (data.customerName && data.customerName.toLowerCase().includes(searchTerm));
-          
-          // Filter by date range
-          let matchDate = true;
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            matchDate = matchDate && invoiceDate >= fromDate;
-          }
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setDate(toDate.getDate() + 1); // Include the entire end date
-            matchDate = matchDate && invoiceDate <= toDate;
-          }
-          
-          if (matchSearch && matchDate) {
-            const row = `
-              <tr data-id="${doc.id}">
-                <td>${data.invoiceNumber}</td>
-                <td>${invoiceDate.toISOString().split('T')[0]}</td>
-                <td>${data.customerName || '-'}</td>
-                <td>${data.total.toFixed(2)}</td>
-                <td>${data.paymentMethod}</td>
-                <td>
-                  <button class="view-invoice">View</button>
-                  <button class="delete-invoice">Delete</button>
-                </td>
-              </tr>`;
-            tbody.append(row);
-          }
-        });
-        
-        if (tbody.children().length === 0) {
-          tbody.append('<tr><td colspan="6">No invoices found</td></tr>');
-        }
-        
-        // Add click handlers for view and delete buttons
-        $('.view-invoice').click(function() {
-          const invoiceId = $(this).closest('tr').data('id');
-          viewInvoiceDetails(invoiceId);
-        });
-        
-        $('.delete-invoice').click(function() {
-          const invoiceId = $(this).closest('tr').data('id');
-          deleteInvoice(invoiceId);
-        });
-      }
-
-      // View invoice details
-      async function viewInvoiceDetails(invoiceId) {
-        try {
-          const q = collection(db, 'invoices');
-          const snapshot = await getDocs(q);
-          let invoiceData = null;
-          
-          snapshot.forEach(doc => {
-            if (doc.id === invoiceId) {
-              invoiceData = doc.data();
-              invoiceData.id = doc.id;
-            }
-          });
-          
-          if (invoiceData) {
-            // Show invoice details in a modal or alert
-            let itemsText = '';
-            invoiceData.items.forEach(item => {
-              itemsText += `
-                ${item.productName} (${item.productCode})
-                Qty: ${item.quantity} x ${item.price.toFixed(2)}
-                Discount: ${item.discountType === 'percentage' ? item.discountValue + '%' : 'Rs ' + item.discountValue.toFixed(2)}
-                Total: ${item.total.toFixed(2)}\n\n`;
-            });
-            
-            alert(`Invoice Details\n
-              Invoice Number: ${invoiceData.invoiceNumber}\n
-              Date: ${invoiceData.createdAt.toDate().toLocaleDateString()}\n
-              Customer: ${invoiceData.customerName || 'N/A'}\n
-              Phone: ${invoiceData.customerPhone || 'N/A'}\n
-              Payment Method: ${invoiceData.paymentMethod}\n
-              Subtotal: ${invoiceData.subtotal.toFixed(2)}\n
-              Total: ${invoiceData.total.toFixed(2)}\n\n
-              Items:\n${itemsText}`);
-          } else {
-            alert('Invoice not found');
-          }
-        } catch (error) {
-          console.error('Error viewing invoice:', error);
-          alert('Error loading invoice details');
-        }
-      }
-
-      // Delete invoice
-      async function deleteInvoice(invoiceId) {
-        if (confirm('Are you sure you want to delete this invoice?')) {
-          try {
-            await deleteDoc(doc(db, 'invoices', invoiceId));
-            alert('Invoice deleted successfully');
-            loadInvoiceList();
-          } catch (error) {
-            console.error('Error deleting invoice:', error);
-            alert('Error deleting invoice');
-          }
-        }
-      }
-
-      // Search invoice for return
-      async function searchInvoiceForReturn() {
-        const invoiceNumber = $('#return-invoice-no').val().trim();
-        if (!invoiceNumber) {
-          alert('Please enter an invoice number');
-          return;
-        }
-        
-        try {
-          const q = collection(db, 'invoices');
-          const snapshot = await getDocs(q);
-          let invoiceFound = false;
-          
-          snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.invoiceNumber === invoiceNumber) {
-              invoiceFound = true;
-              displayInvoiceForReturn(doc.id, data);
-            }
-          });
-          
-          if (!invoiceFound) {
-            alert('Invoice not found');
-          }
-        } catch (error) {
-          console.error('Error searching invoice:', error);
-          alert('Error searching for invoice');
-        }
-      }
-
-      // Display invoice for return
-      function displayInvoiceForReturn(invoiceId, invoiceData) {
-        $('#return-invoice-number').text(invoiceData.invoiceNumber);
-        $('#return-invoice-date').text(invoiceData.createdAt.toDate().toLocaleDateString());
-        $('#return-customer-name').text(invoiceData.customerName || 'N/A');
-        $('#return-original-amount').text(invoiceData.total.toFixed(2));
-        
-        const tbody = $('#return-items-table tbody');
-        tbody.empty();
-        
-        invoiceData.items.forEach(item => {
-          const row = `
-            <tr data-code="${item.productCode}">
-              <td>${item.productCode}</td>
-              <td>${item.productName}</td>
-              <td>${item.quantity}</td>
-              <td>${item.price.toFixed(2)}</td>
-              <td><input type="number" min="0" max="${item.quantity}" value="0" class="return-qty"></td>
-              <td>
-                <select class="discount-type">
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed Amount</option>
-                </select>
-              </td>
-              <td><input type="number" min="0" class="discount-value" value="0"></td>
-              <td><input type="text" class="return-reason" placeholder="Reason"></td>
-            </tr>`;
-          tbody.append(row);
-        });
-        
-        $('#invoice-details').show();
-        
-        // Update return summary when quantities change
-        $('.return-qty').on('input', updateReturnSummary);
-        $('.discount-value').on('input', updateReturnSummary);
-      }
-
-      // Update return summary
-      function updateReturnSummary() {
-        let totalItems = 0;
-        let totalAmount = 0;
-        
-        $('#return-items-table tbody tr').each(function() {
-          const originalQty = parseInt($(this).find('td:eq(2)').text());
-          const returnQty = parseInt($(this).find('.return-qty').val()) || 0;
-          const price = parseFloat($(this).find('td:eq(3)').text());
-          const discountType = $(this).find('.discount-type').val();
-          const discountValue = parseFloat($(this).find('.discount-value').val()) || 0;
-          
-          if (returnQty > 0) {
-            totalItems += returnQty;
-            
-            let itemTotal = returnQty * price;
-            if (discountType === 'percentage') {
-              itemTotal -= itemTotal * discountValue / 100;
-            } else {
-              itemTotal -= discountValue;
-            }
-            
-            totalAmount += Math.max(0, itemTotal); // Ensure not negative
-          }
-        });
-        
-        $('#total-return-items').text(totalItems);
-        $('#total-refund-amount').text(totalAmount.toFixed(2));
-      }
-
-      // Process return
-      async function processReturn() {
-        const invoiceNumber = $('#return-invoice-no').val();
-        const returnDate = $('#return-date').val() || new Date().toISOString().split('T')[0];
-        const primaryReason = $('#return-reason').val();
-        const notes = $('#return-notes').val();
-        const action = $('#return-action').val();
-        
-        if (!primaryReason) {
-          alert('Please select a primary return reason');
-          return;
-        }
-        
-        const returnedItems = [];
-        let anyItemsReturned = false;
-        
-        $('#return-items-table tbody tr').each(function() {
-          const returnQty = parseInt($(this).find('.return-qty').val()) || 0;
-          if (returnQty > 0) {
-            anyItemsReturned = true;
-            returnedItems.push({
-              productCode: $(this).data('code'),
-              productName: $(this).find('td:eq(1)').text(),
-              originalQty: parseInt($(this).find('td:eq(2)').text()),
-              returnQty: returnQty,
-              price: parseFloat($(this).find('td:eq(3)').text()),
-              discountType: $(this).find('.discount-type').val(),
-              discountValue: parseFloat($(this).find('.discount-value').val()) || 0,
-              reason: $(this).find('.return-reason').val() || 'No reason specified'
-            });
-          }
-        });
-        
-        if (!anyItemsReturned) {
-          alert('No items selected for return');
-          return;
-        }
-        
-        const totalRefund = parseFloat($('#total-refund-amount').text());
-        
-        const returnData = {
-          originalInvoice: invoiceNumber,
-          returnDate: returnDate,
-          primaryReason: primaryReason,
-          notes: notes,
-          action: action,
-          returnedItems: returnedItems,
-          totalRefund: totalRefund,
-          processedAt: Timestamp.now(),
-          status: 'processed'
-        };
-        
-        try {
-          await addDoc(collection(db, 'returns'), returnData);
-          alert('Return processed successfully!');
-          cancelReturn();
-          $('.tab-btn[data-tab="invoice-list"]').click();
-        } catch (error) {
-          console.error('Error processing return:', error);
-          alert('Error processing return');
-        }
-      }
-
-      // Cancel return
-      function cancelReturn() {
-        $('#return-invoice-no').val('');
-        $('#return-date').val('');
-        $('#invoice-details').hide();
-        $('#return-items-table tbody').empty();
-        $('#return-reason').val('');
-        $('#return-notes').val('');
-        $('#return-action').val('refund');
-        $('#total-return-items').text('0');
-        $('#total-refund-amount').text('0.00');
-      }
-    });
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Management System</title>
+    <link rel="stylesheet" href="invoice.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="module" src="invoice.js"></script>
 </head>
 <body>
-  
-  <div id="invoice-app">
-    <h1>Invoice Management</h1>
-    
-    <!-- Navigation Tabs -->
-    <div class="tabs">
-        <button class="tab-btn active" data-tab="new-invoice">New Invoice</button>
-        <button class="tab-btn" data-tab="invoice-list">Invoice List</button>
-        <button class="tab-btn" data-tab="return-invoice">Return Invoice</button>
+    <div class="container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <i class="fas fa-receipt"></i>
+                    Invoice Management System
+                </h1>
+                <div class="user-info">
+                    <span class="current-date" id="current-date"></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Navigation Tabs -->
+            <nav class="tab-navigation">
+                <button class="tab-btn active" data-tab="new-invoice">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>New Invoice</span>
+                </button>
+                <button class="tab-btn" data-tab="invoice-list">
+                    <i class="fas fa-list-alt"></i>
+                    <span>Invoice List</span>
+                </button>
+                <button class="tab-btn" data-tab="return-invoice">
+                    <i class="fas fa-undo-alt"></i>
+                    <span>Return Invoice</span>
+                </button>
+            </nav>
+
+            <!-- New Invoice Tab -->
+            <section id="new-invoice" class="tab-content active">
+                <div class="content-header">
+                    <h2><i class="fas fa-plus-circle"></i> Create New Invoice</h2>
+                </div>
+
+                <div class="form-grid">
+                    <!-- Customer Information -->
+                    <div class="form-section">
+                        <h3 class="section-title">Customer Information</h3>
+                        <div class="input-group">
+                            <label for="customer-name">
+                                <i class="fas fa-user"></i>
+                                Customer Name
+                            </label>
+                            <input type="text" id="customer-name" placeholder="Enter customer name">
+                        </div>
+                        <div class="input-group">
+                            <label for="customer-phone">
+                                <i class="fas fa-phone"></i>
+                                Phone Number
+                            </label>
+                            <input type="tel" id="customer-phone" placeholder="Enter phone number">
+                        </div>
+                    </div>
+
+                    <!-- Product Search -->
+                    <div class="form-section">
+                        <h3 class="section-title">Product Search</h3>
+                        <div class="product-search-grid">
+                            <div class="input-group">
+                                <label for="barcode">
+                                    <i class="fas fa-barcode"></i>
+                                    Barcode
+                                </label>
+                                <input type="text" id="barcode" placeholder="Scan or enter barcode" autocomplete="off" autofocus>
+                            </div>
+                            <div class="input-group">
+                                <label for="product-code">
+                                    <i class="fas fa-code"></i>
+                                    Product Code
+                                </label>
+                                <input type="text" id="product-code" placeholder="Enter product code">
+                            </div>
+                            <div class="input-group">
+                                <label for="product-name">
+                                    <i class="fas fa-tag"></i>
+                                    Product Name
+                                </label>
+                                <input type="text" id="product-name" placeholder="Enter product name">
+                            </div>
+                            <div class="input-group">
+                                <label for="available-qty">
+                                    <i class="fas fa-boxes"></i>
+                                    Available Quantity
+                                </label>
+                                <input type="number" id="available-qty" placeholder="0" >
+                            </div>
+                            <div class="input-group">
+                                <label for="quantity">
+                                    <i class="fas fa-sort-numeric-up"></i>
+                                    Quantity
+                                </label>
+                                <input type="number" id="quantity" min="1" value="1" placeholder="1">
+                            </div>
+                            <div class="input-group">
+                                <label for="price">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    Price (Rs)
+                                </label>
+                                <input type="number" id="price" step="0.01" placeholder="0.00" >
+                            </div>
+                        </div>
+
+                        <div class="discount-section">
+                            <h4>Discount Options</h4>
+                            <div class="discount-controls">
+                                <div class="input-group">
+                                    <label for="discount-type">Discount Type</label>
+                                    <select id="discount-type">
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed Amount (Rs)</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label for="discount-value">Discount Value</label>
+                                    <input type="number" id="discount-value" min="0" value="0" placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="add-product" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Add Product
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Invoice Items Table -->
+                <div class="table-section">
+                    <h3 class="section-title">Invoice Items</h3>
+                    <div class="table-container">
+                        <table id="invoice-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Product Code</th>
+                                    <th>Product Name</th>
+                                    <th>Qty</th>
+                                    <th>Price</th>
+                                    <th>Discount</th>
+                                    <th>Total</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                            <tfoot>
+                                <tr class="subtotal-row">
+                                    <td colspan="6"><strong>Subtotal:</strong></td>
+                                    <td><strong id="subtotal">Rs 0.00</strong></td>
+                                    <td></td>
+                                </tr>
+                                <tr class="total-row">
+                                    <td colspan="6"><strong>Total:</strong></td>
+                                    <td><strong id="total">Rs 0.00</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payment Section -->
+                <div class="form-section">
+                    <h3 class="section-title">Payment Information</h3>
+                    <div class="payment-grid">
+                        <div class="input-group">
+                            <label for="payment-method">
+                                <i class="fas fa-credit-card"></i>
+                                Payment Method
+                            </label>
+                            <select id="payment-method">
+                                <option value="cash">Cash Payment</option>
+                                <option value="card">Credit Card</option>
+                                <option value="bank">Bank Transfer</option>
+                            </select>
+                        </div>
+
+                        <div id="cash-payment" class="payment-details">
+                            <div class="input-group">
+                                <label for="cash-received">Cash Received (Rs)</label>
+                                <input type="number" id="cash-received" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="input-group">
+                                <label for="balance">Balance (Rs)</label>
+                                <input type="number" id="balance" placeholder="0.00" readonly>
+                            </div>
+                        </div>
+
+                        <div id="card-payment" class="payment-details hidden">
+                            <div class="input-group">
+                                <label for="card-number">Card Number</label>
+                                <input type="text" id="card-number" placeholder="**** **** **** ****">
+                            </div>
+                            <div class="input-group">
+                                <label for="card-holder">Card Holder Name</label>
+                                <input type="text" id="card-holder" placeholder="Enter card holder name">
+                            </div>
+                        </div>
+
+                        <div id="bank-payment" class="payment-details hidden">
+                            <div class="input-group">
+                                <label for="bank-name">Bank Name</label>
+                                <input type="text" id="bank-name" placeholder="Enter bank name">
+                            </div>
+                            <div class="input-group">
+                                <label for="transaction-id">Transaction ID</label>
+                                <input type="text" id="transaction-id" placeholder="Enter transaction ID">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="generate-invoice" class="btn btn-success btn-large">
+                        <i class="fas fa-file-invoice"></i>
+                        Generate Invoice
+                    </button>
+                </div>
+            </section>
+
+            <!-- Invoice List Tab -->
+            <section id="invoice-list" class="tab-content">
+                <div class="content-header">
+                    <h2><i class="fas fa-list-alt"></i> Invoice List</h2>
+                </div>
+
+                <div class="search-section">
+                    <div class="search-controls">
+                        <div class="input-group">
+                            <label for="search-invoice">
+                                <i class="fas fa-search"></i>
+                                Search
+                            </label>
+                            <input type="text" id="search-invoice" placeholder="Invoice number, customer name...">
+                        </div>
+                        <div class="input-group">
+                            <label for="date-from">From Date</label>
+                            <input type="date" id="date-from">
+                        </div>
+                        <div class="input-group">
+                            <label for="date-to">To Date</label>
+                            <input type="date" id="date-to">
+                        </div>
+                        <button id="search-btn" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                            Search
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-section">
+                    <div class="table-container">
+                        <table id="invoices-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice No</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Total Amount</th>
+                                    <th>Payment Method</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Return Invoice Tab -->
+            <section id="return-invoice" class="tab-content">
+                <div class="content-header">
+                    <h2><i class="fas fa-undo-alt"></i> Return Invoice</h2>
+                </div>
+
+                <div class="return-search-section">
+                    <div class="search-controls">
+                        <div class="input-group">
+                            <label for="return-invoice-no">
+                                <i class="fas fa-receipt"></i>
+                                Invoice Number
+                            </label>
+                            <input type="text" id="return-invoice-no" placeholder="Enter invoice number">
+                        </div>
+                        <div class="input-group">
+                            <label for="return-date">Return Date</label>
+                            <input type="date" id="return-date">
+                        </div>
+                        <button id="search-invoice-btn" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                            Search Invoice
+                        </button>
+                    </div>
+                </div>
+
+                <div id="invoice-details" class="return-details hidden">
+                    <div class="form-section">
+                        <h3 class="section-title">Invoice Details</h3>
+                        <div class="invoice-info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Invoice No:</span>
+                                <span id="return-invoice-number" class="info-value">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Original Date:</span>
+                                <span id="return-invoice-date" class="info-value">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Customer:</span>
+                                <span id="return-customer-name" class="info-value">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Original Amount:</span>
+                                <span id="return-original-amount" class="info-value">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-section">
+                        <h3 class="section-title">Select Items to Return</h3>
+                        <div class="table-container">
+                            <table id="return-items-table" class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product Code</th>
+                                        <th>Product Name</th>
+                                        <th>Original Qty</th>
+                                        <th>Price</th>
+                                        <th>Return Qty</th>
+                                        <th>Discount Type</th>
+                                        <th>Discount Value</th>
+                                        <th>Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">Return Details</h3>
+                        <div class="return-form-grid">
+                            <div class="input-group">
+                                <label for="return-reason">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Primary Return Reason
+                                </label>
+                                <select id="return-reason">
+                                    <option value="">Select Reason</option>
+                                    <option value="defective">Defective Product</option>
+                                    <option value="wrong-item">Wrong Item Delivered</option>
+                                    <option value="damaged">Damaged During Delivery</option>
+                                    <option value="expired">Expired Product</option>
+                                    <option value="change-mind">Customer Changed Mind</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group full-width">
+                                <label for="return-notes">
+                                    <i class="fas fa-sticky-note"></i>
+                                    Additional Notes
+                                </label>
+                                <textarea id="return-notes" placeholder="Enter any additional details about the return..." rows="3"></textarea>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="return-action">
+                                    <i class="fas fa-cog"></i>
+                                    Action
+                                </label>
+                                <select id="return-action">
+                                    <option value="refund">Refund</option>
+                                    <option value="replace">Replace Item</option>
+                                    <option value="credit-note">Issue Credit Note</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="return-summary">
+                            <div class="summary-item">
+                                <span class="summary-label">Total Items to Return:</span>
+                                <span id="total-return-items" class="summary-value">0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Total Refund Amount:</span>
+                                <span id="total-refund-amount" class="summary-value">Rs 0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button id="cancel-return" class="btn btn-secondary">
+                                <i class="fas fa-times"></i>
+                                Cancel
+                            </button>
+                            <button id="process-return" class="btn btn-danger">
+                                <i class="fas fa-check"></i>
+                                Process Return
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
-    
-    <!-- New Invoice Tab -->
-    <div id="new-invoice" class="tab-content active">
-        <h2>Create New Invoice</h2>
-        
-        <div class="customer-info">
-            <label for="customer-name">Customer Name:</label>
-            <input type="text" id="customer-name">
-            
-            <label for="customer-phone">Phone:</label>
-            <input type="text" id="customer-phone">
-        </div>
-        
-        <div class="product-search">
-            <label for="barcode">Barcode:</label>
-            <input type="text" id="barcode" autocomplete="off">
-            
-            <label for="product-code">Product Code:</label>
-            <input type="text" id="product-code">
-            
-            <label for="product-name">Product Name:</label>
-            <input type="text" id="product-name">
-            
-            <label for="available-qty">Available Qty:</label>
-            <input type="number" id="available-qty">
-            
-            <label for="quantity">Quantity:</label>
-            <input type="number" id="quantity" min="1" value="1">
-            
-            <label for="price">Price:</label>
-            <input type="number" id="price" step="0.01">
-            
-            <div class="discount-section">
-                <label for="discount-type">Discount Type:</label>
-                <select id="discount-type">
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed Amount (Rs)</option>
-                </select>
-                <input type="number" id="discount-value" min="0" value="0" title="Enter discount value" placeholder="Discount value">
-            </div>
-            
-            <button id="add-product">Add Product</button>
-        </div>
-        
-        <div class="invoice-items">
-            <table id="invoice-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Product Code</th>
-                        <th>Product Name</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th>Discount</th>
-                        <th>Total</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="6">Subtotal:</td>
-                        <td id="subtotal">0.00</td>
-                        <td></td>
-                    </tr>
-                    <tr>
-                        <td colspan="6">Total:</td>
-                        <td id="total">0.00</td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-        
-        <div class="payment-section">
-            <label for="payment-method">Payment Method:</label>
-            <select id="payment-method">
-                <option value="cash">Cash</option>
-                <option value="card">Credit Card</option>
-                <option value="bank">Bank Transfer</option>
-            </select>
-            
-            <div id="cash-payment" class="payment-details">
-                <label for="cash-received">Cash Received:</label>
-                <input type="number" id="cash-received" step="0.01" min="0">
-                
-                <label for="balance">Balance:</label>
-                <input type="number" id="balance" readonly>
-            </div>
-            
-            <div id="card-payment" class="payment-details" style="display:none;">
-                <label for="card-number">Card Number:</label>
-                <input type="text" id="card-number">
-                
-                <label for="card-holder">Card Holder:</label>
-                <input type="text" id="card-holder">
-            </div>
-            
-            <div id="bank-payment" class="payment-details" style="display:none;">
-                <label for="bank-name">Bank Name:</label>
-                <input type="text" id="bank-name">
-                
-                <label for="transaction-id">Transaction ID:</label>
-                <input type="text" id="transaction-id">
-            </div>
-            
-            <button id="generate-invoice">Generate Invoice</button>
-        </div>
+
+    <!-- Invoice Details Modal -->
+    <div id="invoice-modal" class="modal" aria-hidden="true" aria-labelledby="modal-title">
+      <div class="modal-overlay" tabindex="-1"></div>
+      <div class="modal-content" role="dialog">
+          <div class="modal-header">
+              <h3 class="modal-title" id="modal-title">
+                  <i class="fas fa-receipt"></i>
+                  Invoice Details
+              </h3>
+              <button class="close-modal" title="Close Modal" aria-label="Close modal">
+                  <i class="fas fa-times"></i>
+              </button>
+          </div>
+          <div class="modal-body">
+              <div id="modal-invoice-content" role="document">
+                  <!-- Content will be loaded here -->
+              </div>
+          </div>
+      </div>
+  </div>
     </div>
-    
-    <!-- Invoice List Tab -->
-    <div id="invoice-list" class="tab-content">
-        <h2>Invoice List</h2>
-        
-        <div class="search-filter">
-            <label for="search-invoice">Search:</label>
-            <input type="text" id="search-invoice" placeholder="Invoice number, customer name...">
-            
-            <label for="date-from">From:</label>
-            <input type="date" id="date-from">
-            
-            <label for="date-to">To:</label>
-            <input type="date" id="date-to">
-            
-            <button id="search-btn">Search</button>
-        </div>
-        
-        <table id="invoices-table">
-            <thead>
-                <tr>
-                    <th>Invoice No</th>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Total Amount</th>
-                    <th>Payment Method</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="loading-spinner hidden">
+        <div class="spinner"></div>
+        <p>Processing...</p>
     </div>
-    
-    <!-- Return Invoice Tab -->
-    <div id="return-invoice" class="tab-content">
-        <h2>Return Invoice</h2>
-        
-        <div class="return-search">
-            <div>
-                <label for="return-invoice-no">Invoice Number:</label>
-                <input type="text" id="return-invoice-no" placeholder="Enter invoice number">
-            </div>
-            
-            <div>
-                <label for="return-date">Return Date:</label>
-                <input type="date" id="return-date">
-            </div>
-            
-            <button id="search-invoice-btn">Search Invoice</button>
-        </div>
-        
-        <div id="invoice-details" style="display:none;">
-            <h3>Invoice Details</h3>
-            <div class="invoice-info">
-                <div>
-                    <span>Invoice No:</span>
-                    <span id="return-invoice-number"></span>
-                </div>
-                <div>
-                    <span>Original Date:</span>
-                    <span id="return-invoice-date"></span>
-                </div>
-                <div>
-                    <span>Customer:</span>
-                    <span id="return-customer-name"></span>
-                </div>
-                <div>
-                    <span>Original Amount:</span>
-                    <span id="return-original-amount"></span>
-                </div>
-            </div>
-            
-            <h3>Select Items to Return</h3>
-            <table id="return-items-table">
-                <thead>
-                    <tr>
-                        <th>Product Code</th>
-                        <th>Product Name</th>
-                        <th>Original Qty</th>
-                        <th>Price</th>
-                        <th>Return Qty</th>
-                        <th>Discount Type</th>
-                        <th>Discount Value</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-            
-            <h3>Return Details</h3>
-            <div>
-                <label for="return-reason">Primary Return Reason:</label>
-                <select id="return-reason">
-                    <option value="">Select Reason</option>
-                    <option value="defective">Defective Product</option>
-                    <option value="wrong-item">Wrong Item Delivered</option>
-                    <option value="damaged">Damaged During Delivery</option>
-                    <option value="expired">Expired Product</option>
-                    <option value="change-mind">Customer Changed Mind</option>
-                    <option value="other">Other</option>
-                </select>
-            </div>
-            
-            <div>
-                <label for="return-notes">Additional Notes:</label>
-                <textarea id="return-notes" placeholder="Enter any additional details about the return..."></textarea>
-            </div>
-            
-            <div>
-                <label for="return-action">Action:</label>
-                <select id="return-action">
-                    <option value="refund">Refund</option>
-                    <option value="replace">Replace Item</option>
-                    <option value="credit-note">Issue Credit Note</option>
-                </select>
-            </div>
-            
-            <div class="return-summary">
-                <div>
-                    <span>Total Items to Return:</span>
-                    <span id="total-return-items">0</span>
-                </div>
-                <div>
-                    <span>Total Refund Amount:</span>
-                    <span id="total-refund-amount">0.00</span>
-                </div>
-            </div>
-            
-            <div>
-                <button id="cancel-return">Cancel</button>
-                <button id="process-return">Process Return</button>
-            </div>
-        </div>
-    </div>
-</div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        // Set current date
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString();
+    </script>
 </body>
 </html>
