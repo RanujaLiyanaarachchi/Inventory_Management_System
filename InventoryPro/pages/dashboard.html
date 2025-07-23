@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InventoryPro - Dashboard</title>
+  
   <!-- Authentication Guard Script - Must be loaded first -->
   <script>
     (function() {
@@ -133,125 +134,83 @@
   
   <link rel="stylesheet" href="../app.css">
   <link rel="stylesheet" href="dashboard.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+  <!-- Mobile Menu Overlay -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+  
   <!-- Setup Modal -->
-  <div id="setupModal" style="display: none;">
-    <div style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.8);
-      z-index: 10001;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    ">
-      <div style="
-        background: #2c3e50;
-        border-radius: 12px;
-        max-width: 800px;
-        width: 100%;
-        max-height: 90vh;
-        overflow-y: auto;
-        color: white;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-      ">
-        <div style="padding: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="margin: 0; color: #3498db; display: flex; align-items: center; gap: 0.5rem;">
+  <div id="setupModal" class="setup-modal hidden">
+    <div class="setup-modal-overlay">
+      <div class="setup-modal-content">
+        <div class="setup-modal-header">
+          <div class="setup-modal-title-container">
+            <h2 class="setup-modal-title">
               <i class="fas fa-server"></i>
               Local Server Setup Guide
             </h2>
-            <button onclick="closeSetupModal()" style="
-              background: none;
-              border: none;
-              color: white;
-              font-size: 1.5rem;
-              cursor: pointer;
-              opacity: 0.7;
-            ">×</button>
+            <button onclick="closeSetupModal()" class="setup-modal-close">×</button>
           </div>
         </div>
         
-        <div style="padding: 2rem;">
-          <div style="margin-bottom: 2rem;">
-            <h3 style="color: #e74c3c; margin-bottom: 1rem;">⚠️ Current Issue</h3>
-            <p style="color: #bdc3c7; line-height: 1.6; margin-bottom: 1rem;">
+        <div class="setup-modal-body">
+          <div class="setup-modal-section">
+            <h3 class="setup-issue-title">⚠️ Current Issue</h3>
+            <p class="setup-issue-text">
               You're running InventoryPro directly from files (file:// protocol). Modern browsers block loading of external files for security, which prevents pages like Suppliers, Products, etc. from working properly.
             </p>
           </div>
           
-          <div style="margin-bottom: 2rem;">
-            <h3 style="color: #2ecc71; margin-bottom: 1rem;">✅ Solutions</h3>
+          <div class="setup-modal-section">
+            <h3 class="setup-solutions-title">✅ Solutions</h3>
             
             <!-- VS Code Live Server -->
-            <div style="margin-bottom: 1.5rem; padding: 1.5rem; background: rgba(52, 152, 219, 0.1); border-radius: 8px; border-left: 4px solid #3498db;">
-              <h4 style="color: #3498db; margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="setup-option vscode-option">
+              <h4 class="setup-option-title">
                 <i class="fab fa-microsoft"></i>
                 Option 1: VS Code Live Server (Recommended)
               </h4>
-              <ol style="color: #bdc3c7; margin: 0; padding-left: 1.5rem; line-height: 1.6;">
+              <ol class="setup-option-steps">
                 <li>Open VS Code</li>
                 <li>Install "Live Server" extension by Ritwick Dey</li>
-                <li>Right-click on <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;">dashboard.html</code></li>
+                <li>Right-click on <code class="setup-code">dashboard.html</code></li>
                 <li>Select "Open with Live Server"</li>
-                <li>Your app will open at <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;">http://127.0.0.1:5500</code></li>
+                <li>Your app will open at <code class="setup-code">http://127.0.0.1:5500</code></li>
               </ol>
             </div>
             
             <!-- Python Server -->
-            <div style="margin-bottom: 1.5rem; padding: 1.5rem; background: rgba(46, 204, 113, 0.1); border-radius: 8px; border-left: 4px solid #2ecc71;">
-              <h4 style="color: #2ecc71; margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="setup-option python-option">
+              <h4 class="setup-option-title">
                 <i class="fab fa-python"></i>
                 Option 2: Python Server
               </h4>
-              <ol style="color: #bdc3c7; margin: 0; padding-left: 1.5rem; line-height: 1.6;">
+              <ol class="setup-option-steps">
                 <li>Open Command Prompt/Terminal in project folder</li>
-                <li>Run: <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 3px; font-family: monospace;">python -m http.server 8000</code></li>
-                <li>Open: <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 3px; font-family: monospace;">http://localhost:8000/pages/dashboard.html</code></li>
+                <li>Run: <code class="setup-code-dark">python -m http.server 8000</code></li>
+                <li>Open: <code class="setup-code-dark">http://localhost:8000/pages/dashboard.html</code></li>
               </ol>
             </div>
             
             <!-- Node.js Server -->
-            <div style="margin-bottom: 1.5rem; padding: 1.5rem; background: rgba(155, 89, 182, 0.1); border-radius: 8px; border-left: 4px solid #9b59b6;">
-              <h4 style="color: #9b59b6; margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">
+            <div class="setup-option nodejs-option">
+              <h4 class="setup-option-title">
                 <i class="fab fa-node-js"></i>
                 Option 3: Node.js Server
               </h4>
-              <ol style="color: #bdc3c7; margin: 0; padding-left: 1.5rem; line-height: 1.6;">
-                <li>Install: <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 3px; font-family: monospace;">npm install -g http-server</code></li>
-                <li>Run: <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 3px; font-family: monospace;">http-server -p 8000</code></li>
-                <li>Open: <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 3px; font-family: monospace;">http://localhost:8000/pages/dashboard.html</code></li>
+              <ol class="setup-option-steps">
+                <li>Install: <code class="setup-code-dark">npm install -g http-server</code></li>
+                <li>Run: <code class="setup-code-dark">http-server -p 8000</code></li>
+                <li>Open: <code class="setup-code-dark">http://localhost:8000/pages/dashboard.html</code></li>
               </ol>
             </div>
           </div>
           
-          <div style="text-align: center; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
-            <button onclick="enableFileMode(); closeSetupModal();" style="
-              background: #e74c3c;
-              color: white;
-              border: none;
-              padding: 0.75rem 2rem;
-              border-radius: 6px;
-              cursor: pointer;
-              font-size: 0.875rem;
-              margin-right: 1rem;
-            ">Continue with Limited Features</button>
-            <button onclick="closeSetupModal()" style="
-              background: #34495e;
-              color: white;
-              border: none;
-              padding: 0.75rem 2rem;
-              border-radius: 6px;
-              cursor: pointer;
-              font-size: 0.875rem;
-            ">Close</button>
+          <div class="setup-modal-footer">
+            <button onclick="enableFileMode(); closeSetupModal();" class="setup-btn-continue">Continue with Limited Features</button>
+            <button onclick="closeSetupModal()" class="setup-btn-close">Close</button>
           </div>
         </div>
       </div>
@@ -265,6 +224,9 @@
         <i class="fas fa-boxes-stacked"></i>
         <span class="logo-text">Inventory<span>Pro</span></span>
       </div>
+      <button class="sidebar-toggle mobile-only" id="sidebarClose" title="Close sidebar">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
 
     <nav class="sidebar-nav">
@@ -297,13 +259,6 @@
           <a href="#" class="nav-link">
             <i class="fas fa-warehouse"></i>
             <span class="nav-text">Stocks</span>
-          </a>
-        </li>
-        
-        <li class="nav-item" data-page="grn">
-          <a href="#" class="nav-link">
-            <i class="fas fa-clipboard-check"></i>
-            <span class="nav-text">GRN</span>
           </a>
         </li>
         <li class="nav-item" data-page="users">
@@ -358,19 +313,34 @@
 
   <!-- Main Content -->
   <main class="main-content" id="mainContent">
-    <!-- Header (Hidden for dashboard) -->
-    <header class="main-header" id="mainHeader">
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+      <button class="sidebar-toggle" id="sidebarToggle" title="Open sidebar menu">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="mobile-logo">
+        <i class="fas fa-boxes-stacked"></i>
+        <span>InventoryPro</span>
+      </div>
+      <div class="mobile-user">
+        <i class="fas fa-user-circle"></i>
+      </div>
+    </header>
+
+    <!-- Desktop Header (Hidden for dashboard) -->
+    <header class="main-header desktop-only" id="mainHeader">
       <div class="header-left">
         <h1 class="page-title" id="pageTitle">Dashboard</h1>
       </div>
       <div class="header-right">
-        <!-- Header right content can be added here if needed -->
+        <div class="header-actions">
+        </div>
       </div>
     </header>
 
     <!-- Content Area -->
     <div class="content-area" id="contentArea">
-      <!-- Dashboard Welcome Screen -->
+      <!-- Dashboard Welcome Screen - Simplified to show only time and date -->
       <div class="page-content" id="dashboardContent">
         <div class="dashboard-welcome">
           <div class="welcome-content">
@@ -423,6 +393,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       checkAuthentication();
       initializeDashboard();
+      initializeMobileNavigation();
       updateDateTime();
       setInterval(updateDateTime, 1000);
     });
@@ -445,6 +416,54 @@
         window.location.href = "selection.html";
         return false;
       }
+    }
+
+    function initializeMobileNavigation() {
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebarClose = document.getElementById('sidebarClose');
+      const mobileOverlay = document.getElementById('mobileOverlay');
+      const sidebar = document.getElementById('sidebar');
+
+      function openSidebar() {
+        sidebar.classList.add('active');
+        mobileOverlay.classList.add('active');
+        document.body.classList.add('sidebar-open');
+      }
+
+      function closeSidebar() {
+        sidebar.classList.remove('active');
+        mobileOverlay.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+      }
+
+      if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', openSidebar);
+      }
+      
+      if (sidebarClose) {
+        sidebarClose.addEventListener('click', closeSidebar);
+      }
+      
+      if (mobileOverlay) {
+        mobileOverlay.addEventListener('click', closeSidebar);
+      }
+
+      // Close sidebar when nav item is clicked on mobile
+      const navItems = document.querySelectorAll('.nav-item');
+      navItems.forEach(item => {
+        item.addEventListener('click', () => {
+          if (window.innerWidth <= 768) {
+            setTimeout(closeSidebar, 200);
+          }
+        });
+      });
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+          closeSidebar();
+        }
+      });
     }
 
     function initializeDashboard() {
@@ -883,8 +902,6 @@
       `;
     }
 
-    
-
     function loadPageCSS(page) {
       // Remove any existing page-specific CSS
       const existingCSS = document.querySelector('link[data-page-css]');
@@ -1015,7 +1032,19 @@
     // Initialize dashboard on first load
     document.addEventListener('DOMContentLoaded', function() {
       // Hide header initially since dashboard is default
-      document.getElementById('mainHeader').classList.add('hidden');
+      const mainHeader = document.getElementById('mainHeader');
+      if (mainHeader) {
+        mainHeader.classList.add('hidden');
+      }
+
+      // Fix cursor issues by ensuring proper event handling
+      document.body.style.cursor = 'default';
+      
+      // Ensure all clickable elements have proper cursor
+      const clickableElements = document.querySelectorAll('button, a, .nav-link, .logout-btn, [onclick], input, select, textarea');
+      clickableElements.forEach(element => {
+        element.style.cursor = 'pointer';
+      });
     });
 
     // Logout function
