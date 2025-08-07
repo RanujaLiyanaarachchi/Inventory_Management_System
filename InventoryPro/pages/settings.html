@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings | Inventory Management System</title>
+    <link rel="stylesheet" href="settings.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+
+        <main class="content">
+            <header>
+                <h1><i class="fas fa-cog"></i> System Settings</h1>
+                <div class="user-actions">
+                    <span>Welcome, Admin</span>
+                    <button class="btn-logout"><i class="fas fa-sign-out-alt"></i></button>
+                </div>
+            </header>
+
+            <div class="settings-container">
+                <div class="settings-sidebar">
+                    <ul class="settings-menu">
+                        <li class="active" data-tab="company-info"><i class="fas fa-building"></i> Company Info</li>
+                        <li data-tab="invoice-settings"><i class="fas fa-file-invoice"></i> Invoice Settings</li>
+                        <li data-tab="tax-currency"><i class="fas fa-money-bill-wave"></i> Tax & Currency</li>
+                        <li data-tab="security"><i class="fas fa-shield-alt"></i> Security</li>
+                        <li data-tab="localization"><i class="fas fa-globe"></i> Localization</li>
+                    </ul>
+                </div>
+
+                <div class="settings-content">
+                    <!-- Company Info Tab -->
+                    <div id="company-info" class="settings-tab active">
+                        <h2><i class="fas fa-building"></i> Company Information</h2>
+                        <form id="companyInfoForm">
+                            <div class="form-group logo-upload">
+                                <label>Company Logo</label>
+                                <div class="logo-preview">
+                                    <img id="logoPreview" src="" alt="Company Logo">
+                                    <div class="upload-controls">
+                                        <input type="file" id="logoUpload" accept="image/*">
+                                        <button type="button" id="uploadBtn" class="btn-secondary">Upload Logo</button>
+                                        <button type="button" id="removeLogoBtn" class="btn-danger">Remove</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="companyName">Company Name</label>
+                                <input type="text" id="companyName" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="companyEmail">Email Address</label>
+                                <input type="email" id="companyEmail" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="companyPhone">Phone Number</label>
+                                <input type="tel" id="companyPhone">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="companyAddress">Street Address</label>
+                                <input type="text" id="companyAddress">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="companyCity">City</label>
+                                    <input type="text" id="companyCity">
+                                </div>
+                                <div class="form-group">
+                                    <label for="companyState">District</label>
+                                    <input type="text" id="companyState">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="companyZip">Postal Code</label>
+                                    <input type="text" id="companyZip">
+                                </div>
+                                <div class="form-group">
+                                    <label for="companyCountry">Country</label>
+                                    <select id="companyCountry">
+                                        <option value="LK" selected>Sri Lanka</option>
+                                        <option value="US">United States</option>
+                                        <option value="UK">United Kingdom</option>
+                                        <option value="IN">India</option>
+                                        <!-- More countries can be added -->
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="companyTaxId">Tax ID/VAT Number</label>
+                                <input type="text" id="companyTaxId">
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="reset" class="btn-secondary">Reset</button>
+                                <button type="submit" class="btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Invoice Settings Tab -->
+                    <div id="invoice-settings" class="settings-tab">
+                        <h2><i class="fas fa-file-invoice"></i> Invoice Settings</h2>
+                        <form id="invoiceSettingsForm">
+                            <div class="form-group">
+                                <label for="invoicePrefix">Invoice Prefix</label>
+                                <input type="text" id="invoicePrefix" placeholder="INV">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="invoiceStartingNumber">Starting Invoice Number</label>
+                                <input type="number" id="invoiceStartingNumber" min="1" value="1">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="invoiceTerms">Default Payment Terms</label>
+                                <select id="invoiceTerms">
+                                    <option value="0">Due on Receipt</option>
+                                    <option value="7">Net 7 Days</option>
+                                    <option value="15" selected>Net 15 Days</option>
+                                    <option value="30">Net 30 Days</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="invoiceNotes">Default Invoice Notes</label>
+                                <textarea id="invoiceNotes" rows="3">Thank you for your business!</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="invoiceFooter">Invoice Footer Text</label>
+                                <textarea id="invoiceFooter" rows="2">Terms & Conditions apply. VAT No: {{vatNumber}}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Invoice Template</label>
+                                <div class="template-selector">
+                                    <div class="template-option active" data-template="default">
+                                        <div class="template-preview default-template">
+                                            <div class="template-header">INVOICE</div>
+                                            <div class="template-content">
+                                                <div class="template-row">Invoice #: {{number}}</div>
+                                                <div class="template-row">Date: {{date}}</div>
+                                            </div>
+                                        </div>
+                                        <span>Default</span>
+                                    </div>
+                                    <div class="template-option" data-template="modern">
+                                        <div class="template-preview modern-template">
+                                            <div class="template-header">INVOICE</div>
+                                            <div class="template-content">
+                                                <div class="template-row">{{number}}</div>
+                                                <div class="template-row">{{date}}</div>
+                                            </div>
+                                        </div>
+                                        <span>Modern</span>
+                                    </div>
+                                    <div class="template-option" data-template="minimal">
+                                        <div class="template-preview minimal-template">
+                                            <div class="template-header">INVOICE</div>
+                                            <div class="template-content">
+                                                <div class="template-row">#{{number}}</div>
+                                                <div class="template-row">{{date}}</div>
+                                            </div>
+                                        </div>
+                                        <span>Minimal</span>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="invoiceTemplate" value="default">
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="reset" class="btn-secondary">Reset</button>
+                                <button type="submit" class="btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Tax & Currency Tab -->
+                    <div id="tax-currency" class="settings-tab">
+                        <h2><i class="fas fa-money-bill-wave"></i> Tax & Currency Settings</h2>
+                        <form id="taxCurrencyForm">
+                            <div class="form-group">
+                                <label for="baseCurrency">Base Currency</label>
+                                <select id="baseCurrency">
+                                    <option value="LKR" selected>Sri Lankan Rupee (LKR)</option>
+                                    <option value="USD">US Dollar (USD)</option>
+                                    <option value="EUR">Euro (EUR)</option>
+                                    <option value="GBP">British Pound (GBP)</option>
+                                    <option value="INR">Indian Rupee (INR)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="currencyPosition">Currency Position</label>
+                                <select id="currencyPosition">
+                                    <option value="before">Rs. 100 (Before amount)</option>
+                                    <option value="after" selected>100 LKR (After amount)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="decimalPlaces">Decimal Places</label>
+                                <select id="decimalPlaces">
+                                    <option value="0">0 (100)</option>
+                                    <option value="2" selected>2 (100.00)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="thousandSeparator">Thousand Separator</label>
+                                <select id="thousandSeparator">
+                                    <option value="," selected>Comma (1,000)</option>
+                                    <option value=".">Period (1.000)</option>
+                                    <option value=" ">Space (1 000)</option>
+                                </select>
+                            </div>
+
+                            <h3>Tax Settings</h3>
+                            <div class="form-group">
+                                <label for="taxCalculation">Tax Calculation Method</label>
+                                <select id="taxCalculation">
+                                    <option value="exclusive" selected>Exclusive of tax</option>
+                                    <option value="inclusive">Inclusive of tax</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="defaultTaxRate">Default VAT Rate (%)</label>
+                                <input type="number" id="defaultTaxRate" min="0" max="100" step="0.01" value="15.00">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Tax Rates</label>
+                                <div class="tax-rates-list">
+                                    <div class="tax-rate-item">
+                                        <input type="text" placeholder="Tax Name" value="VAT">
+                                        <input type="number" placeholder="Rate %" min="0" max="100" step="0.01" value="15.00">
+                                        <button class="btn-icon remove-tax-rate"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                    <div class="tax-rate-item">
+                                        <input type="text" placeholder="Tax Name" value="NBT">
+                                        <input type="number" placeholder="Rate %" min="0" max="100" step="0.01" value="2.00">
+                                        <button class="btn-icon remove-tax-rate"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <button type="button" id="addTaxRate" class="btn-secondary"><i class="fas fa-plus"></i> Add Tax Rate</button>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="reset" class="btn-secondary">Reset</button>
+                                <button type="submit" class="btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Security Tab -->
+                    <div id="security" class="settings-tab">
+                        <h2><i class="fas fa-shield-alt"></i> Security Settings</h2>
+                        <form id="securityForm">
+                            <div class="form-group">
+                                <label for="passwordComplexity">Password Complexity</label>
+                                <select id="passwordComplexity">
+                                    <option value="low">Low (6+ characters)</option>
+                                    <option value="medium" selected>Medium (8+ chars with mix of letters and numbers)</option>
+                                    <option value="high">High (10+ chars with uppercase, lowercase, numbers & symbols)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="passwordExpiry">Password Expiry</label>
+                                <select id="passwordExpiry">
+                                    <option value="0">Never</option>
+                                    <option value="30">30 Days</option>
+                                    <option value="60">60 Days</option>
+                                    <option value="90" selected>90 Days</option>
+                                    <option value="180">180 Days</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="failedAttempts">Failed Login Attempts Before Lockout</label>
+                                <select id="failedAttempts">
+                                    <option value="0">No lockout</option>
+                                    <option value="3">3 Attempts</option>
+                                    <option value="5" selected>5 Attempts</option>
+                                    <option value="10">10 Attempts</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="lockoutDuration">Account Lockout Duration (minutes)</label>
+                                <input type="number" id="lockoutDuration" min="1" value="15">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Two-Factor Authentication</label>
+                                <div class="checkbox-group">
+                                    <label>
+                                        <input type="checkbox" id="enable2FA">
+                                        Enable Two-Factor Authentication (2FA)
+                                    </label>
+                                </div>
+                                <div id="2faSettings" style="display: none; margin-top: 15px;">
+                                    <div class="form-group">
+                                        <label for="2faMethod">2FA Method</label>
+                                        <select id="2faMethod">
+                                            <option value="email">Email</option>
+                                            <option value="authenticator">Authenticator App</option>
+                                            <option value="sms">SMS</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="2faFrequency">Require 2FA</label>
+                                        <select id="2faFrequency">
+                                            <option value="login">Every Login</option>
+                                            <option value="device">Per Device</option>
+                                            <option value="session">Per Session</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Session Settings</label>
+                                <div class="form-group">
+                                    <label for="sessionTimeout">Session Timeout (minutes)</label>
+                                    <input type="number" id="sessionTimeout" min="1" value="30">
+                                </div>
+                                <div class="checkbox-group">
+                                    <label>
+                                        <input type="checkbox" id="singleSession" checked>
+                                        Allow only one active session per user
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="reset" class="btn-secondary">Reset</button>
+                                <button type="submit" class="btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Localization Tab -->
+                    <div id="localization" class="settings-tab">
+                        <h2><i class="fas fa-globe"></i> Localization Settings</h2>
+                        <form id="localizationForm">
+                            <div class="form-group">
+                                <label for="systemLanguage">System Language</label>
+                                <select id="systemLanguage">
+                                    <option value="en" selected>English</option>
+                                    <option value="si">Sinhala</option>
+                                    <option value="ta">Tamil</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dateFormat">Date Format</label>
+                                <select id="dateFormat">
+                                    <option value="yyyy-mm-dd" selected>YYYY-MM-DD (2025-12-31)</option>
+                                    <option value="dd/mm/yyyy">DD/MM/YYYY (31/12/2025)</option>
+                                    <option value="mm/dd/yyyy">MM/DD/YYYY (12/31/2025)</option>
+                                    <option value="month-day-year">Month Day, Year (December 31, 2025)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="timeFormat">Time Format</label>
+                                <select id="timeFormat">
+                                    <option value="12" selected>12-hour (3:45 PM)</option>
+                                    <option value="24">24-hour (15:45)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="timezone">Timezone</label>
+                                <select id="timezone">
+                                    <option value="5.5" selected>(GMT +5:30) Sri Lanka, India</option>
+                                    <option value="-12">(GMT -12:00) Eniwetok, Kwajalein</option>
+                                    <option value="-11">(GMT -11:00) Midway Island, Samoa</option>
+                                    <!-- More timezones can be added -->
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="firstDayOfWeek">First Day of Week</label>
+                                <select id="firstDayOfWeek">
+                                    <option value="0">Sunday</option>
+                                    <option value="1" selected>Monday</option>
+                                    <option value="6">Saturday</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="numberFormat">Number Format</label>
+                                <select id="numberFormat">
+                                    <option value="1,000.00" selected>1,000.00 (English)</option>
+                                    <option value="1 000,00">1 000,00 (Sinhala/Tamil)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="reset" class="btn-secondary">Reset</button>
+                                <button type="submit" class="btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // DOM Elements
+        const settingsMenuItems = document.querySelectorAll('.settings-menu li');
+        const settingsTabs = document.querySelectorAll('.settings-tab');
+        const logoUpload = document.getElementById('logoUpload');
+        const logoPreview = document.getElementById('logoPreview');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const removeLogoBtn = document.getElementById('removeLogoBtn');
+        const templateOptions = document.querySelectorAll('.template-option');
+        const invoiceTemplate = document.getElementById('invoiceTemplate');
+        const taxRatesList = document.querySelector('.tax-rates-list');
+        const addTaxRateBtn = document.getElementById('addTaxRate');
+        const enable2FA = document.getElementById('enable2FA');
+        const twoFASettings = document.getElementById('2faSettings');
+
+        // Sample data (in a real app, this would come from an API)
+        const settingsData = {
+            companyInfo: {
+                logo: '',
+                name: 'Sri Lankan Business Co.',
+                email: 'info@srilankanbusiness.com',
+                phone: '+94 11 234 5678',
+                address: '123 Business Street',
+                city: 'Colombo',
+                state: 'Western',
+                zip: '00100',
+                country: 'LK',
+                taxId: 'LK123456789'
+            },
+            invoiceSettings: {
+                prefix: 'INV',
+                startingNumber: 1001,
+                terms: 15,
+                notes: 'Thank you for your business!',
+                footer: 'Terms & Conditions apply. VAT No: {{vatNumber}}',
+                template: 'default'
+            },
+            taxCurrency: {
+                currency: 'LKR',
+                position: 'after',
+                decimals: 2,
+                separator: ',',
+                taxMethod: 'exclusive',
+                defaultRate: 15.00,
+                taxRates: [
+                    { name: 'VAT', rate: 15.00 },
+                    { name: 'NBT', rate: 2.00 }
+                ]
+            },
+            security: {
+                passwordComplexity: 'medium',
+                passwordExpiry: 90,
+                failedAttempts: 5,
+                lockoutDuration: 15,
+                enable2FA: false,
+                twoFAMethod: 'email',
+                twoFAFrequency: 'login',
+                sessionTimeout: 30,
+                singleSession: true
+            },
+            localization: {
+                language: 'en',
+                dateFormat: 'yyyy-mm-dd',
+                timeFormat: '12',
+                timezone: '5.5',
+                firstDayOfWeek: '1',
+                numberFormat: '1,000.00'
+            }
+        };
+
+        // Event Listeners
+        settingsMenuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const tabId = item.getAttribute('data-tab');
+                switchTab(tabId);
+            });
+        });
+
+        uploadBtn.addEventListener('click', () => logoUpload.click());
+        removeLogoBtn.addEventListener('click', removeLogo);
+        logoUpload.addEventListener('change', handleLogoUpload);
+        templateOptions.forEach(option => {
+            option.addEventListener('click', () => selectTemplate(option));
+        });
+        addTaxRateBtn.addEventListener('click', addTaxRate);
+        enable2FA.addEventListener('change', toggle2FASettings);
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettingsData();
+            document.querySelector('.settings-menu li').click();
+        });
+
+        // Functions
+        function switchTab(tabId) {
+            // Update menu items
+            settingsMenuItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('data-tab') === tabId) {
+                    item.classList.add('active');
+                }
+            });
+
+            // Update tabs
+            settingsTabs.forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.id === tabId) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        function handleLogoUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    logoPreview.src = event.target.result;
+                    settingsData.companyInfo.logo = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeLogo() {
+            logoPreview.src = '';
+            logoUpload.value = '';
+            settingsData.companyInfo.logo = '';
+        }
+
+        function selectTemplate(option) {
+            templateOptions.forEach(opt => opt.classList.remove('active'));
+            option.classList.add('active');
+            const template = option.getAttribute('data-template');
+            invoiceTemplate.value = template;
+            settingsData.invoiceSettings.template = template;
+        }
+
+        function addTaxRate() {
+            const taxRateItem = document.createElement('div');
+            taxRateItem.className = 'tax-rate-item';
+            taxRateItem.innerHTML = `
+                <input type="text" placeholder="Tax Name">
+                <input type="number" placeholder="Rate %" min="0" max="100" step="0.01">
+                <button class="btn-icon remove-tax-rate"><i class="fas fa-trash"></i></button>
+            `;
+            taxRatesList.appendChild(taxRateItem);
+            
+            taxRateItem.querySelector('.remove-tax-rate').addEventListener('click', () => {
+                taxRateItem.remove();
+            });
+        }
+
+        function toggle2FASettings() {
+            twoFASettings.style.display = enable2FA.checked ? 'block' : 'none';
+            settingsData.security.enable2FA = enable2FA.checked;
+        }
+
+        function loadSettingsData() {
+            // Company Info
+            document.getElementById('companyName').value = settingsData.companyInfo.name;
+            document.getElementById('companyEmail').value = settingsData.companyInfo.email;
+            document.getElementById('companyPhone').value = settingsData.companyInfo.phone;
+            document.getElementById('companyAddress').value = settingsData.companyInfo.address;
+            document.getElementById('companyCity').value = settingsData.companyInfo.city;
+            document.getElementById('companyState').value = settingsData.companyInfo.state;
+            document.getElementById('companyZip').value = settingsData.companyInfo.zip;
+            document.getElementById('companyCountry').value = settingsData.companyInfo.country;
+            document.getElementById('companyTaxId').value = settingsData.companyInfo.taxId;
+            if (settingsData.companyInfo.logo) {
+                logoPreview.src = settingsData.companyInfo.logo;
+            }
+
+            // Invoice Settings
+            document.getElementById('invoicePrefix').value = settingsData.invoiceSettings.prefix;
+            document.getElementById('invoiceStartingNumber').value = settingsData.invoiceSettings.startingNumber;
+            document.getElementById('invoiceTerms').value = settingsData.invoiceSettings.terms;
+            document.getElementById('invoiceNotes').value = settingsData.invoiceSettings.notes;
+            document.getElementById('invoiceFooter').value = settingsData.invoiceSettings.footer;
+            invoiceTemplate.value = settingsData.invoiceSettings.template;
+            document.querySelector(`.template-option[data-template="${settingsData.invoiceSettings.template}"]`).classList.add('active');
+
+            // Tax & Currency
+            document.getElementById('baseCurrency').value = settingsData.taxCurrency.currency;
+            document.getElementById('currencyPosition').value = settingsData.taxCurrency.position;
+            document.getElementById('decimalPlaces').value = settingsData.taxCurrency.decimals;
+            document.getElementById('thousandSeparator').value = settingsData.taxCurrency.separator;
+            document.getElementById('taxCalculation').value = settingsData.taxCurrency.taxMethod;
+            document.getElementById('defaultTaxRate').value = settingsData.taxCurrency.defaultRate;
+            
+            taxRatesList.innerHTML = '';
+            settingsData.taxCurrency.taxRates.forEach(rate => {
+                const taxRateItem = document.createElement('div');
+                taxRateItem.className = 'tax-rate-item';
+                taxRateItem.innerHTML = `
+                    <input type="text" placeholder="Tax Name" value="${rate.name}">
+                    <input type="number" placeholder="Rate %" min="0" max="100" step="0.01" value="${rate.rate}">
+                    <button class="btn-icon remove-tax-rate"><i class="fas fa-trash"></i></button>
+                `;
+                taxRatesList.appendChild(taxRateItem);
+                
+                taxRateItem.querySelector('.remove-tax-rate').addEventListener('click', () => {
+                    taxRateItem.remove();
+                });
+            });
+
+            // Security
+            document.getElementById('passwordComplexity').value = settingsData.security.passwordComplexity;
+            document.getElementById('passwordExpiry').value = settingsData.security.passwordExpiry;
+            document.getElementById('failedAttempts').value = settingsData.security.failedAttempts;
+            document.getElementById('lockoutDuration').value = settingsData.security.lockoutDuration;
+            enable2FA.checked = settingsData.security.enable2FA;
+            document.getElementById('2faMethod').value = settingsData.security.twoFAMethod;
+            document.getElementById('2faFrequency').value = settingsData.security.twoFAFrequency;
+            document.getElementById('sessionTimeout').value = settingsData.security.sessionTimeout;
+            document.getElementById('singleSession').checked = settingsData.security.singleSession;
+            toggle2FASettings();
+
+            // Localization
+            document.getElementById('systemLanguage').value = settingsData.localization.language;
+            document.getElementById('dateFormat').value = settingsData.localization.dateFormat;
+            document.getElementById('timeFormat').value = settingsData.localization.timeFormat;
+            document.getElementById('timezone').value = settingsData.localization.timezone;
+            document.getElementById('firstDayOfWeek').value = settingsData.localization.firstDayOfWeek;
+            document.getElementById('numberFormat').value = settingsData.localization.numberFormat;
+        }
+
+        // Form submissions
+        document.getElementById('companyInfoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Save company info
+            settingsData.companyInfo = {
+                logo: logoPreview.src,
+                name: document.getElementById('companyName').value,
+                email: document.getElementById('companyEmail').value,
+                phone: document.getElementById('companyPhone').value,
+                address: document.getElementById('companyAddress').value,
+                city: document.getElementById('companyCity').value,
+                state: document.getElementById('companyState').value,
+                zip: document.getElementById('companyZip').value,
+                country: document.getElementById('companyCountry').value,
+                taxId: document.getElementById('companyTaxId').value
+            };
+            alert('Company information saved successfully!');
+        });
+
+        document.getElementById('invoiceSettingsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Save invoice settings
+            settingsData.invoiceSettings = {
+                prefix: document.getElementById('invoicePrefix').value,
+                startingNumber: parseInt(document.getElementById('invoiceStartingNumber').value),
+                terms: parseInt(document.getElementById('invoiceTerms').value),
+                notes: document.getElementById('invoiceNotes').value,
+                footer: document.getElementById('invoiceFooter').value,
+                template: invoiceTemplate.value
+            };
+            alert('Invoice settings saved successfully!');
+        });
+
+        document.getElementById('taxCurrencyForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Save tax & currency settings
+            const taxRates = [];
+            document.querySelectorAll('.tax-rate-item').forEach(item => {
+                const name = item.querySelector('input[type="text"]').value;
+                const rate = parseFloat(item.querySelector('input[type="number"]').value);
+                if (name && !isNaN(rate)) {
+                    taxRates.push({ name, rate });
+                }
+            });
+
+            settingsData.taxCurrency = {
+                currency: document.getElementById('baseCurrency').value,
+                position: document.getElementById('currencyPosition').value,
+                decimals: parseInt(document.getElementById('decimalPlaces').value),
+                separator: document.getElementById('thousandSeparator').value,
+                taxMethod: document.getElementById('taxCalculation').value,
+                defaultRate: parseFloat(document.getElementById('defaultTaxRate').value),
+                taxRates
+            };
+            alert('Tax & currency settings saved successfully!');
+        });
+
+        document.getElementById('securityForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Save security settings
+            settingsData.security = {
+                passwordComplexity: document.getElementById('passwordComplexity').value,
+                passwordExpiry: parseInt(document.getElementById('passwordExpiry').value),
+                failedAttempts: parseInt(document.getElementById('failedAttempts').value),
+                lockoutDuration: parseInt(document.getElementById('lockoutDuration').value),
+                enable2FA: enable2FA.checked,
+                twoFAMethod: document.getElementById('2faMethod').value,
+                twoFAFrequency: document.getElementById('2faFrequency').value,
+                sessionTimeout: parseInt(document.getElementById('sessionTimeout').value),
+                singleSession: document.getElementById('singleSession').checked
+            };
+            alert('Security settings saved successfully!');
+        });
+
+        document.getElementById('localizationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Save localization settings
+            settingsData.localization = {
+                language: document.getElementById('systemLanguage').value,
+                dateFormat: document.getElementById('dateFormat').value,
+                timeFormat: document.getElementById('timeFormat').value,
+                timezone: document.getElementById('timezone').value,
+                firstDayOfWeek: document.getElementById('firstDayOfWeek').value,
+                numberFormat: document.getElementById('numberFormat').value
+            };
+            alert('Localization settings saved successfully!');
+        });
+    </script>
+</body>
+</html>

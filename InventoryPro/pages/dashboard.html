@@ -511,54 +511,59 @@
       }
     }
 
-    async function loadExternalPage(page) {
-      const dynamicContent = document.getElementById('dynamicContent');
-      
-      // Show loading state
-      dynamicContent.innerHTML = createLoadingHTML(page);
-      
-      console.log(`🔄 Loading ${page} page...`);
-      
-      const isFileProtocol = window.location.protocol === 'file:';
-      
-      // If in file mode and not enabled, show setup instead
-      if (isFileProtocol && !window.FILE_MODE_ENABLED) {
-        showSetupRequiredMessage(page);
-        return;
-      }
-      
-      try {
-        let content = '';
-        
-        if (isFileProtocol && window.FILE_MODE_ENABLED) {
-          // File protocol mode - use embedded content
-          content = await loadEmbeddedContent(page);
-        } else {
-          // Server mode - load external files
-          content = await loadExternalFile(page);
-        }
-        
-        if (content) {
-          dynamicContent.innerHTML = content;
-          loadPageCSS(page);
-          
-          setTimeout(() => {
-            executePageScripts(dynamicContent);
-            setTimeout(() => {
-              initializePageSpecificFeatures(page);
-            }, 100);
-          }, 50);
-          
-          console.log(`🎉 ${page} page loaded successfully`);
-        } else {
-          throw new Error('No content available');
-        }
-        
-      } catch (error) {
-        console.error(`❌ Error loading ${page}:`, error);
-        showErrorMessage(page, error);
+   async function loadExternalPage(page) {
+  const dynamicContent = document.getElementById('dynamicContent');
+  
+  // Show loading state
+  dynamicContent.innerHTML = createLoadingHTML(page);
+  
+  console.log(`🔄 Loading ${page} page...`);
+  
+  const isFileProtocol = window.location.protocol === 'file:';
+  
+  // If in file mode and not enabled, show setup instead
+  if (isFileProtocol && !window.FILE_MODE_ENABLED) {
+    showSetupRequiredMessage(page);
+    return;
+  }
+
+  try {
+    let content = '';
+
+    if (isFileProtocol && window.FILE_MODE_ENABLED) {
+      // File protocol mode - use embedded content
+      content = await loadEmbeddedContent(page);
+    } else {
+      // Server mode - load external files
+      // Special handling for promotions page
+      if (page === 'promotions') {
+        content = await loadExternalFile('../promotions/promotions.html');
+      } else {
+        content = await loadExternalFile(page);
       }
     }
+    
+    if (content) {
+      dynamicContent.innerHTML = content;
+      loadPageCSS(page);
+      
+      setTimeout(() => {
+        executePageScripts(dynamicContent);
+        setTimeout(() => {
+          initializePageSpecificFeatures(page);
+        }, 100);
+      }, 50);
+      
+      console.log(`🎉 ${page} page loaded successfully`);
+    } else {
+      throw new Error('No content available');
+    }
+    
+  } catch (error) {
+    console.error(`❌ Error loading ${page}:`, error);
+    showErrorMessage(page, error);
+  }
+}
 
     async function loadExternalFile(page) {
       const possiblePaths = [
