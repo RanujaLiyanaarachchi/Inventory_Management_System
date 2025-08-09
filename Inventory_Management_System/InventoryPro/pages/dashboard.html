@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InventoryPro - Dashboard</title>
+  
+  <!-- Authentication Guard Script - Must be loaded first -->
+  <!-- Authentication will be handled by the main script below -->
+  
+  <!-- Local File Access Detection and Setup -->
+  <script>
+    // Check if running on file:// protocol and show setup guide
+    (function() {
+      const isFileProtocol = window.location.protocol === 'file:';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (isFileProtocol) {
+        console.warn('🚨 Running on file:// protocol. Setting up local file access handlers...');
+        
+        // Set global flag for file protocol mode
+        window.FILE_PROTOCOL_MODE = true;
+        
+        // Add setup banner
+        document.addEventListener('DOMContentLoaded', function() {
+          showFileProtocolBanner();
+        });
+      } else if (isLocalhost) {
+        console.log('✅ Running on local server. Full functionality available.');
+        window.FILE_PROTOCOL_MODE = false;
+      }
+      
+      function showFileProtocolBanner() {
+        const banner = document.createElement('div');
+        banner.id = 'fileProtocolBanner';
+        banner.innerHTML = `
+          <div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 0.875rem;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+          ">
+            <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-exclamation-triangle" style="color: #f39c12; animation: pulse 2s infinite;"></i>
+                <strong>File Protocol Mode:</strong> Some features may not work. 
+                <a href="#" onclick="showSetupModal()" style="color: #ecf0f1; text-decoration: underline; margin-left: 0.5rem;">Setup Local Server</a>
+              </div>
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <button onclick="enableFileMode()" style="
+                  background: rgba(255,255,255,0.2);
+                  border: 1px solid rgba(255,255,255,0.3);
+                  color: white;
+                  padding: 0.25rem 0.75rem;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  font-size: 0.75rem;
+                ">Continue Anyway</button>
+                <button onclick="document.getElementById('fileProtocolBanner').remove()" style="
+                  background: none;
+                  border: none;
+                  color: white;
+                  font-size: 1rem;
+                  cursor: pointer;
+                  opacity: 0.8;
+                ">×</button>
+              </div>
+            </div>
+          </div>
+          
+          <style>
+            @keyframes pulse {
+              0% { opacity: 1; }
+              50% { opacity: 0.5; }
+              100% { opacity: 1; }
+            }
+          </style>
+        `;
+        document.body.appendChild(banner);
+        
+        // Adjust body padding to account for banner
+        document.body.style.paddingTop = '60px';
+      }
+    })();
+  </script>
+  
+  <link rel="stylesheet" href="../app.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Mobile Menu Overlay -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+  
+  <!-- Setup Modal -->
+  <div id="setupModal" class="setup-modal hidden">
+    <div class="setup-modal-overlay">
+      <div class="setup-modal-content">
+        <div class="setup-modal-header">
+          <div class="setup-modal-title-container">
+            <h2 class="setup-modal-title">
+              <i class="fas fa-server"></i>
+              Local Server Setup Guide
+            </h2>
+            <button onclick="closeSetupModal()" class="setup-modal-close">×</button>
+          </div>
+        </div>
+        
+        <div class="setup-modal-body">
+          <div class="setup-modal-section">
+            <h3 class="setup-issue-title">⚠️ Current Issue</h3>
+            <p class="setup-issue-text">
+              You're running InventoryPro directly from files (file:// protocol). Modern browsers block loading of external files for security, which prevents pages like Suppliers, Products, etc. from working properly.
+            </p>
+          </div>
+          
+          <div class="setup-modal-section">
+            <h3 class="setup-solutions-title">✅ Solutions</h3>
+            
+            <!-- VS Code Live Server -->
+            <div class="setup-option vscode-option">
+              <h4 class="setup-option-title">
+                <i class="fab fa-microsoft"></i>
+                Option 1: VS Code Live Server (Recommended)
+              </h4>
+              <ol class="setup-option-steps">
+                <li>Open VS Code</li>
+                <li>Install "Live Server" extension by Ritwick Dey</li>
+                <li>Right-click on <code class="setup-code">dashboard.html</code></li>
+                <li>Select "Open with Live Server"</li>
+                <li>Your app will open at <code class="setup-code">http://127.0.0.1:5500</code></li>
+              </ol>
+            </div>
+            
+            <!-- Python Server -->
+            <div class="setup-option python-option">
+              <h4 class="setup-option-title">
+                <i class="fab fa-python"></i>
+                Option 2: Python Server
+              </h4>
+              <ol class="setup-option-steps">
+                <li>Open Command Prompt/Terminal in project folder</li>
+                <li>Run: <code class="setup-code-dark">python -m http.server 8000</code></li>
+                <li>Open: <code class="setup-code-dark">http://localhost:8000/pages/dashboard.html</code></li>
+              </ol>
+            </div>
+            
+            <!-- Node.js Server -->
+            <div class="setup-option nodejs-option">
+              <h4 class="setup-option-title">
+                <i class="fab fa-node-js"></i>
+                Option 3: Node.js Server
+              </h4>
+              <ol class="setup-option-steps">
+                <li>Install: <code class="setup-code-dark">npm install -g http-server</code></li>
+                <li>Run: <code class="setup-code-dark">http-server -p 8000</code></li>
+                <li>Open: <code class="setup-code-dark">http://localhost:8000/pages/dashboard.html</code></li>
+              </ol>
+            </div>
+          </div>
+          
+          <div class="setup-modal-footer">
+            <button onclick="enableFileMode(); closeSetupModal();" class="setup-btn-continue">Continue with Limited Features</button>
+            <button onclick="closeSetupModal()" class="setup-btn-close">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <i class="fas fa-boxes-stacked"></i>
+        <span class="logo-text">Inventory<span>Pro</span></span>
+      </div>
+      <button class="sidebar-toggle mobile-only" id="sidebarClose" title="Close sidebar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ul class="nav-list">
+        <li class="nav-item active" data-page="dashboard">
+          <a href="#" class="nav-link">
+            <i class="fas fa-chart-pie"></i>
+            <span class="nav-text">Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="suppliers">
+          <a href="#" class="nav-link">
+            <i class="fas fa-truck"></i>
+            <span class="nav-text">Suppliers</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="products">
+          <a href="#" class="nav-link">
+            <i class="fas fa-box"></i>
+            <span class="nav-text">Products</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="categories">
+          <a href="#" class="nav-link">
+            <i class="fas fa-tags"></i>
+            <span class="nav-text">Categories</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="stocks">
+          <a href="#" class="nav-link">
+            <i class="fas fa-warehouse"></i>
+            <span class="nav-text">Stocks</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="grn">
+          <a href="#" class="nav-link">
+            <i class="fas fa-clipboard-check"></i>
+            <span class="nav-text">GRN</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="users">
+          <a href="#" class="nav-link">
+            <i class="fas fa-users"></i>
+            <span class="nav-text">Users</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="invoices">
+          <a href="#" class="nav-link">
+            <i class="fas fa-file-invoice"></i>
+            <span class="nav-text">Invoices</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="return-invoices">
+          <a href="#" class="nav-link">
+            <i class="fas fa-undo"></i>
+            <span class="nav-text">Return Invoices</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="promotions">
+          <a href="#" class="nav-link">
+            <i class="fas fa-percentage"></i>
+            <span class="nav-text">Promotions</span>
+          </a>
+        </li>
+        <li class="nav-item" data-page="settings">
+          <a href="#" class="nav-link">
+            <i class="fas fa-cog"></i>
+            <span class="nav-text">Settings</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-profile">
+        <div class="user-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Loading...</span>
+          <span class="user-role" id="userRole">Loading...</span>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="logout()">
+        <i class="fas fa-sign-out-alt"></i>
+        <span class="nav-text">Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent">
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+      <button class="sidebar-toggle" id="sidebarToggle" title="Open sidebar menu">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="mobile-logo">
+        <i class="fas fa-boxes-stacked"></i>
+        <span>InventoryPro</span>
+      </div>
+      <div class="mobile-user">
+        <i class="fas fa-user-circle"></i>
+      </div>
+    </header>
+
+    <!-- Desktop Header (Hidden for dashboard) -->
+    <header class="main-header desktop-only" id="mainHeader">
+      <div class="header-left">
+        <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      </div>
+      <div class="header-right">
+        <div class="header-actions">
+        </div>
+      </div>
+    </header>
+
+    <!-- Content Area -->
+    <div class="content-area" id="contentArea">
+      <!-- Dashboard Welcome Screen - Simplified to show only time and date -->
+      <div class="page-content" id="dashboardContent">
+        <div class="dashboard-welcome">
+          <div class="welcome-content">
+            <div class="welcome-message">
+              <h2 class="welcome-title">Welcome to InventoryPro</h2>
+              <p class="welcome-subtitle">Manage your inventory efficiently and effectively</p>
+            </div>
+            
+            <!-- Centered DateTime Display -->
+            <div class="datetime-center-display" id="datetimeCenterDisplay">
+              <div class="time-container">
+                <div class="current-time-large" id="currentTimeLarge"></div>
+                <div class="current-date-large" id="currentDateLarge"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic Content will be loaded here -->
+      <div class="page-content hidden" id="dynamicContent">
+        <!-- External page content will be loaded here -->
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    // Import Firebase modules for authentication and database
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBKjE2SmRvgQczTmcKZrEFD0pyjLBMD4gg",
+      authDomain: "inventorypro-lk.firebaseapp.com",
+      projectId: "inventorypro-lk",
+      storageBucket: "inventorypro-lk.firebasestorage.app",
+      messagingSenderId: "594998429191",
+      appId: "1:594998429191:web:518f4b7f88eb7c0a2d0ca2",
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Make Firebase instances globally available for dynamically loaded pages
+    window.globalAuth = auth;
+    window.globalDb = db;
+    console.log('🔧 Global Firebase instances set:', { auth: !!auth, db: !!db });
+
+    // Global variables
+    window.FILE_MODE_ENABLED = false;
+
+    // Debug function to test page loading
+    window.testPageLoad = async function(page) {
+      console.log(`🧪 Testing page load for: ${page}`);
+      
+      // Use the same mapping as the main loading function
+      const pageFileMap = {
+        'invoices': 'invoice',
+        'return-invoices': 'returnInvoice',
+        'stocks': 'stocks',
+        'products': 'products',
+        'categories': 'categories',
+        'suppliers': 'suppliers',
+        'users': 'users',
+        'grn': 'grn'
+      };
+      
+      const actualFileName = pageFileMap[page] || page;
+      console.log(`📝 Testing with mapped name: ${actualFileName}.html`);
+      
+      try {
+        const response = await fetch(`${actualFileName}.html`);
+        if (response.ok) {
+          const text = await response.text();
+          console.log(`✅ Successfully fetched ${actualFileName}.html (${text.length} chars)`);
+          
+          // Try to load it in the dynamic content
+          const dynamicContent = document.getElementById('dynamicContent');
+          if (dynamicContent) {
+            dynamicContent.innerHTML = text;
+            console.log(`✅ Content inserted into dynamic container`);
+          } else {
+            console.error(`❌ Dynamic content container not found`);
+          }
+        } else {
+          console.error(`❌ Failed to fetch ${actualFileName}.html: ${response.status}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error testing ${page}:`, error);
+      }
+    };
+
+    // Debug function to test CSS loading
+    window.testCSSLoad = function(page) {
+      console.log(`🧪 Testing CSS load for: ${page}`);
+      loadPageCSS(page);
+    };
+
+    // Function to initialize invoice tabs manually with multiple methods
+    function initializeInvoiceTabs() {
+      console.log('🔧 Initializing invoice tabs manually');
+      
+      // Method 1: Try with jQuery if available
+      if (typeof window.$ !== 'undefined') {
+        console.log('📚 Using jQuery method for tabs');
+        initializeWithJQuery();
+      }
+      
+      // Method 2: Always try with vanilla JavaScript as backup
+      console.log('🟡 Using vanilla JavaScript method for tabs');
+      initializeWithVanillaJS();
+      
+      // Method 3: Set up continuous monitoring for tab elements
+      setupTabMonitoring();
+      
+      console.log('✅ Invoice tabs initialization complete');
+    }
+    
+    function initializeWithJQuery() {
+      try {
+        // Remove any existing click handlers to prevent duplicates
+        $('.tab-btn').off('click.tabHandler');
+        
+        // Add tab click handlers with namespace
+        $('.tab-btn').on('click.tabHandler', function(e) {
+          e.preventDefault();
+          console.log(`📋 jQuery Tab clicked: ${$(this).data('tab')}`);
+          
+          const tabId = $(this).data('tab');
+          switchToTab(tabId);
+        });
+        
+        console.log(`✅ jQuery tabs initialized, found ${$('.tab-btn').length} tab buttons`);
+      } catch (error) {
+        console.error('❌ jQuery tab initialization failed:', error);
+      }
+    }
+    
+    function initializeWithVanillaJS() {
+      try {
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        console.log(`🔍 Found ${tabButtons.length} tab buttons with vanilla JS`);
+        
+        tabButtons.forEach((button, index) => {
+          // Remove existing listeners by cloning
+          const newButton = button.cloneNode(true);
+          button.parentNode.replaceChild(newButton, button);
+          
+          // Add new click listener
+          newButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            const tabId = this.getAttribute('data-tab');
+            console.log(`📋 Vanilla JS Tab clicked: ${tabId}`);
+            switchToTab(tabId);
+          });
+        });
+        
+        console.log('✅ Vanilla JS tabs initialized');
+      } catch (error) {
+        console.error('❌ Vanilla JS tab initialization failed:', error);
+      }
+    }
+    
+    function switchToTab(tabId) {
+      console.log(`🔄 Switching to tab: ${tabId}`);
+      
+      try {
+        // Method 1: Try with jQuery
+        if (typeof window.$ !== 'undefined') {
+          $('.tab-btn').removeClass('active');
+          $('.tab-content').removeClass('active');
+          $(`.tab-btn[data-tab="${tabId}"]`).addClass('active');
+          $(`#${tabId}`).addClass('active');
+        }
+        
+        // Method 2: Vanilla JS backup
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        const targetButton = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        const targetContent = document.getElementById(tabId);
+        
+        if (targetButton) targetButton.classList.add('active');
+        if (targetContent) targetContent.classList.add('active');
+        
+        console.log(`✅ Successfully switched to tab: ${tabId}`);
+      } catch (error) {
+        console.error(`❌ Error switching to tab ${tabId}:`, error);
+      }
+    }
+    
+    function setupTabMonitoring() {
+      // Monitor for tab elements and reinitialize if needed
+      let monitorAttempts = 0;
+      const maxAttempts = 20;
+      
+      const monitor = setInterval(() => {
+        monitorAttempts++;
+        
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        if (tabButtons.length > 0) {
+          console.log(`🔍 Tab monitor found ${tabButtons.length} tabs on attempt ${monitorAttempts}`);
+          
+          // Check if any button lacks event listeners by testing one
+          const firstButton = tabButtons[0];
+          if (firstButton && !firstButton.hasAttribute('data-initialized')) {
+            console.log('🔄 Re-initializing tabs from monitor');
+            initializeWithVanillaJS();
+            
+            // Mark as initialized
+            tabButtons.forEach(btn => btn.setAttribute('data-initialized', 'true'));
+          }
+        }
+        
+        if (monitorAttempts >= maxAttempts) {
+          clearInterval(monitor);
+          console.log('⏹️ Tab monitoring stopped after max attempts');
+        }
+      }, 500);
+      
+      // Stop monitoring after 10 seconds
+      setTimeout(() => {
+        clearInterval(monitor);
+        console.log('⏹️ Tab monitoring stopped after timeout');
+      }, 10000);
+    }
+
+    // Function to initialize other invoice events
+    function initializeInvoiceEvents() {
+      if (typeof window.$ === 'undefined') return;
+      
+      console.log('🔧 Initializing invoice events');
+      
+      // Remove existing handlers to prevent duplicates
+      $('#payment-method').off('change');
+      $('#cash-received').off('input');
+      $('#add-product').off('click');
+      $('#generate-invoice').off('click');
+      $('#search-btn').off('click');
+      $('#search-invoice-btn').off('click');
+      $('#process-return').off('click');
+      $('#cancel-return').off('click');
+      $('.close-modal').off('click');
+      
+      // Re-attach event handlers (replicate from invoice.js)
+      $('#payment-method').on('change', function() {
+        $('.payment-details').hide();
+        const method = $(this).val();
+        $(`#${method}-payment`).show();
+      });
+
+      $('#cash-received').on('input', function() {
+        const total = parseFloat($('#total').text()) || 0;
+        const received = parseFloat($(this).val()) || 0;
+        const balance = received - total;
+        $('#balance').val(balance.toFixed(2));
+      });
+
+      // Note: Other handlers would need their functions to be available globally
+      // This is a simplified version - the full implementation would need more work
+      
+      console.log('✅ Invoice events initialized');
+    }
+
+    // Make functions globally available for testing
+    window.initializeInvoiceTabs = initializeInvoiceTabs;
+
+    // Enhanced debug functions for tab functionality
+    window.testTabSwitch = function(tabId) {
+      console.log(`🧪 Testing tab switch to: ${tabId}`);
+      switchToTab(tabId);
+    };
+
+    window.forceReinitializeTabs = function() {
+      console.log('🔄 Force reinitializing tabs');
+      initializeInvoiceTabs();
+    };
+
+    window.checkTabElements = function() {
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      const tabContents = document.querySelectorAll('.tab-content');
+      console.log(`🔍 Found ${tabButtons.length} tab buttons and ${tabContents.length} tab contents`);
+      
+      tabButtons.forEach((btn, index) => {
+        console.log(`Tab ${index}: data-tab="${btn.getAttribute('data-tab')}", active: ${btn.classList.contains('active')}`);
+      });
+      
+      return { buttons: tabButtons.length, contents: tabContents.length };
+    };
+
+    // Make tab switching function globally available
+    window.switchToTab = switchToTab;
+
+    // Check authentication on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check for debug mode in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const debugMode = urlParams.has('debug') || window.location.hash.includes('debug');
+      
+      if (debugMode) {
+        console.log("🐛 Debug mode enabled - bypassing authentication");
+        // Set dummy session for testing
+        const dummySession = {
+          displayName: "Debug User",
+          email: "debug@test.com",
+          role: "admin",
+          roleName: "Administrator",
+          authenticated: true
+        };
+        localStorage.setItem("userSession", JSON.stringify(dummySession));
+      }
+      
+      checkAuthentication();
+      initializeDashboard();
+      initializeMobileNavigation();
+      updateDateTime();
+      setInterval(updateDateTime, 1000);
+    });
+
+    function checkAuthentication() {
+      console.log("🔐 Checking authentication...");
+      
+      const userSession = localStorage.getItem("userSession") || sessionStorage.getItem("userSession");
+      const authToken = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+      const selectedRole = localStorage.getItem("selectedRole");
+      
+      console.log("📋 Auth Status:", {
+        hasUserSession: !!userSession,
+        hasAuthToken: !!authToken,
+        hasSelectedRole: !!selectedRole,
+        userSessionLength: userSession ? userSession.length : 0
+      });
+      
+      if (!userSession) {
+        console.log("❌ No user session found");
+        
+        // Check if user wants to access dashboard directly
+        const directAccess = confirm("No user session found.\n\nChoose OK to go to login page, or Cancel to continue as Guest (limited functionality).");
+        
+        if (directAccess) {
+          console.log("🔄 Redirecting to selection page for proper authentication");
+          window.location.href = "selection.html";
+          return false;
+        } else {
+          console.log("👤 Continuing as Guest user");
+          // Set guest session
+          const guestSession = {
+            displayName: "Guest User",
+            email: "guest@localhost",
+            role: "viewer",
+            roleName: "Guest",
+            authenticated: false
+          };
+          localStorage.setItem("userSession", JSON.stringify(guestSession));
+          // Update userSession variable to continue with guest session
+          userSession = JSON.stringify(guestSession);
+        }
+      }
+
+      try {
+        const sessionData = JSON.parse(userSession);
+        console.log("✅ Session data parsed successfully:", {
+          hasDisplayName: !!sessionData.displayName,
+          hasEmail: !!sessionData.email,
+          hasRole: !!sessionData.role,
+          hasRoleName: !!sessionData.roleName
+        });
+        
+        document.getElementById('userName').textContent = sessionData.displayName || sessionData.email.split('@')[0] || 'User';
+        document.getElementById('userRole').textContent = sessionData.roleName || sessionData.role || 'User';
+        return true;
+      } catch (error) {
+        console.error("❌ Invalid session data:", error);
+        alert("Invalid session data found. You will be redirected to the login page.");
+        window.location.href = "selection.html";
+        return false;
+      }
+    }
+
+    function initializeMobileNavigation() {
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebarClose = document.getElementById('sidebarClose');
+      const mobileOverlay = document.getElementById('mobileOverlay');
+      const sidebar = document.getElementById('sidebar');
+
+      function openSidebar() {
+        sidebar.classList.add('active');
+        mobileOverlay.classList.add('active');
+        document.body.classList.add('sidebar-open');
+      }
+
+      function closeSidebar() {
+        sidebar.classList.remove('active');
+        mobileOverlay.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+      }
+
+      if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', openSidebar);
+      }
+      
+      if (sidebarClose) {
+        sidebarClose.addEventListener('click', closeSidebar);
+      }
+      
+      if (mobileOverlay) {
+        mobileOverlay.addEventListener('click', closeSidebar);
+      }
+
+      // Close sidebar when nav item is clicked on mobile
+      const navItems = document.querySelectorAll('.nav-item');
+      navItems.forEach(item => {
+        item.addEventListener('click', () => {
+          if (window.innerWidth <= 768) {
+            setTimeout(closeSidebar, 200);
+          }
+        });
+      });
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+          closeSidebar();
+        }
+      });
+    }
+
+    function initializeDashboard() {
+      const navItems = document.querySelectorAll('.nav-item');
+      
+      navItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          // Remove active class from all items
+          navItems.forEach(navItem => navItem.classList.remove('active'));
+          
+          // Add active class to clicked item
+          this.classList.add('active');
+          
+          const page = this.getAttribute('data-page');
+          loadPage(page);
+        });
+      });
+    }
+
+    function loadPage(page) {
+      console.log(`📄 Loading page: ${page}`);
+      
+      const pageTitle = document.getElementById('pageTitle');
+      const mainHeader = document.getElementById('mainHeader');
+      const dashboardContent = document.getElementById('dashboardContent');
+      const dynamicContent = document.getElementById('dynamicContent');
+      
+      if (!pageTitle || !mainHeader || !dashboardContent || !dynamicContent) {
+        console.error(`❌ Required page elements not found:`, {
+          pageTitle: !!pageTitle,
+          mainHeader: !!mainHeader,
+          dashboardContent: !!dashboardContent,
+          dynamicContent: !!dynamicContent
+        });
+        return;
+      }
+      
+      // Update page title
+      pageTitle.textContent = page.charAt(0).toUpperCase() + page.slice(1).replace('-', ' ');
+      console.log(`📋 Page title updated to: ${pageTitle.textContent}`);
+      
+      if (page === 'dashboard') {
+        console.log(`🏠 Loading dashboard view`);
+        // Hide header for dashboard and show dashboard content
+        mainHeader.classList.add('hidden');
+        dashboardContent.classList.remove('hidden');
+        dynamicContent.classList.add('hidden');
+      } else {
+        console.log(`📃 Loading external page view for: ${page}`);
+        // Show header for other pages
+        mainHeader.classList.remove('hidden');
+        // Hide dashboard content and show dynamic content
+        dashboardContent.classList.add('hidden');
+        dynamicContent.classList.remove('hidden');
+        
+        // Load external page
+        loadExternalPage(page);
+      }
+    }
+
+    async function loadExternalPage(page) {
+  console.log(`🌐 Starting to load external page: ${page}`);
+  const dynamicContent = document.getElementById('dynamicContent');
+  
+  if (!dynamicContent) {
+    console.error(`❌ Dynamic content container not found!`);
+    return;
+  }
+  
+  // Clear previous content and show loading state
+  dynamicContent.innerHTML = createLoadingHTML(page);
+  dynamicContent.style.overflow = 'auto';
+  console.log(`⏳ Loading state set for ${page}`);
+  
+  try {
+    let content;
+    
+    console.log(`🔍 FILE_PROTOCOL_MODE: ${window.FILE_PROTOCOL_MODE}, FILE_MODE_ENABLED: ${window.FILE_MODE_ENABLED}`);
+    
+    // Check if we should use embedded content
+    if (window.FILE_PROTOCOL_MODE && !window.FILE_MODE_ENABLED) {
+      console.log(`📦 Using embedded content for ${page}`);
+      content = getEmbeddedContent(page);
+    } else {
+      console.log(`🌐 Loading external file for ${page}`);
+      // Try to load the external page
+      content = await loadExternalFile(page);
+    }
+    
+    console.log(`📋 Content loaded:`, content ? `${content.length} characters` : 'null');
+    
+    if (content) {
+      console.log(`📄 Setting content for ${page}`);
+      dynamicContent.innerHTML = content;
+      
+      // Fix any CSS links within the loaded content
+      fixCSSLinksInContent(dynamicContent, page);
+      
+      console.log(`🎨 Loading CSS for ${page}`);
+      // Load CSS after content is inserted
+      loadPageCSS(page);
+      
+      console.log(`⚡ Executing scripts for ${page}`);
+      // Execute scripts in the loaded content
+      executePageScripts(dynamicContent);
+      
+      // Wait longer for scripts to load, then initialize
+      console.log(`⏲️ Setting up initialization timer for ${page}`);
+      setTimeout(() => {
+        console.log(`🚀 Initializing ${page} page now`);
+        
+        // Trigger DOMContentLoaded-like event for dynamically loaded content
+        triggerPageInitialization(page);
+        
+        // Initialize page-specific features
+        initializePageSpecificFeatures(page);
+        
+        // Load data for the page
+        loadPageData(page);
+        
+        // Additional initialization for invoice page
+        if (page === 'invoices') {
+          console.log('🔄 Additional invoice initialization');
+          setTimeout(() => {
+            initializeInvoiceTabs();
+          }, 500);
+          
+          setTimeout(() => {
+            initializeInvoiceTabs();
+          }, 1500);
+          
+          setTimeout(() => {
+            initializeInvoiceTabs();
+          }, 3000);
+        }
+      }, 3000); // Increased timeout even more
+      
+      // Set up proper scrolling
+      setupContentScrolling();
+      console.log(`✅ Page ${page} loaded successfully`);
+    } else {
+      console.error(`❌ No content received for ${page}`);
+      showErrorMessage(page, new Error('No content received'));
+    }
+  } catch (error) {
+    console.error(`❌ Error loading ${page}:`, error);
+    showErrorMessage(page, error);
+  }
+}
+
+function setupContentScrolling() {
+  const dynamicContent = document.getElementById('dynamicContent');
+  const headerHeight = document.querySelector('.main-header')?.offsetHeight || 60;
+  
+  dynamicContent.style.overflow = 'auto';
+  dynamicContent.style.height = `calc(100vh - ${headerHeight + 20}px)`;
+  dynamicContent.style.padding = '20px';
+}
+
+async function loadPageData(page) {
+  console.log(`🔧 Loading data for ${page}...`);
+  
+  // Debug: Check what functions are available
+  const availableFunctions = Object.keys(window).filter(key => 
+    key.includes('load') || key.includes('initialize') || key.includes('Products') || key.includes('Users') || key.includes('Categories') || key.includes('Suppliers') || key.includes('Stock')
+  );
+  console.log(`🔍 Available window functions (${availableFunctions.length}):`, availableFunctions);
+  
+  // More detailed debugging
+  console.log(`🔍 Checking specific functions for ${page}:`);
+  console.log(`- loadProductsFromFirebase: ${typeof window.loadProductsFromFirebase}`);
+  console.log(`- initializeProductsPage: ${typeof window.initializeProductsPage}`);
+  console.log(`- loadCategoriesFromFirebase: ${typeof window.loadCategoriesFromFirebase}`);
+  console.log(`- loadSuppliersFromFirebase: ${typeof window.loadSuppliersFromFirebase}`);
+  console.log(`- loadStockData: ${typeof window.loadStockData}`);
+  console.log(`- loadUsersFromFirebase: ${typeof window.loadUsersFromFirebase}`);
+  
+  // Check authentication status
+  const userSession = localStorage.getItem('userSession') || sessionStorage.getItem('userSession');
+  if (!userSession) {
+    console.warn('⚠️ No user session found - data loading may fail due to permissions');
+  } else {
+    console.log('✅ User session found:', JSON.parse(userSession));
+  }
+  
+  // Check Firebase auth state
+  console.log('🔍 Firebase auth state:', auth?.currentUser ? {
+    uid: auth.currentUser.uid,
+    email: auth.currentUser.email,
+    emailVerified: auth.currentUser.emailVerified
+  } : 'No authenticated user');
+  
+  // Global Firebase instances should already be set during initialization
+  
+  try {
+    switch(page) {
+      case 'stocks':
+        console.log('🔧 Trying stocks page data loading...');
+        if (typeof window.loadStockData === 'function') {
+          console.log('✅ Calling loadStockData()');
+          await window.loadStockData();
+        } else {
+          console.log('❌ loadStockData function not found');
+          // Try to find and call the stocks initialization manually
+          console.log('🔧 Attempting manual stocks initialization...');
+          if (document.querySelector('.container .page-title')) {
+            console.log('📊 Stocks page content detected, trying to trigger data load...');
+          }
+        }
+        break;
+      case 'grn':
+        if (typeof window.loadGRNData === 'function') {
+          await window.loadGRNData();
+        }
+        break;
+      case 'users':
+        console.log('🔧 Initializing users page...');
+        if (typeof window.loadUsersFromFirebase === 'function') {
+          console.log('✅ Found loadUsersFromFirebase function');
+          await window.loadUsersFromFirebase();
+        } else if (typeof window.loadUsersData === 'function') {
+          console.log('✅ Found loadUsersData function');
+          await window.loadUsersData();
+        } else {
+          console.warn('❌ No users loading function found');
+        }
+        break;
+      case 'products':
+        console.log('🔧 Initializing products page...');
+        if (typeof window.loadProductsFromFirebase === 'function') {
+          console.log('✅ Found loadProductsFromFirebase function');
+          window.loadProductsFromFirebase();
+        } else if (typeof window.initializeProductsPage === 'function') {
+          console.log('✅ Found initializeProductsPage function');
+          window.initializeProductsPage();
+        } else {
+          console.log('⏳ Waiting for products page scripts to load...');
+          // Try multiple times to find the initialization function
+          let attempts = 0;
+          const checkProductsInit = setInterval(() => {
+            attempts++;
+            if (typeof window.initializeProductsPage === 'function') {
+              clearInterval(checkProductsInit);
+              console.log('✅ Products page initialization function found, calling it');
+              window.initializeProductsPage();
+            } else if (attempts >= 10) {
+              clearInterval(checkProductsInit);
+              console.log('⚠️ Products page initialization function not found after 10 attempts');
+            }
+          }, 500);
+        }
+        break;
+      case 'categories':
+        if (typeof window.loadCategoriesFromFirebase === 'function') {
+          window.loadCategoriesFromFirebase();
+        } else if (typeof window.initializeCategoriesPage === 'function') {
+          window.initializeCategoriesPage();
+        } else if (typeof window.loadCategories === 'function') {
+          window.loadCategories();
+        }
+        break;
+      case 'suppliers':
+        if (typeof window.loadSuppliersFromFirebase === 'function') {
+          window.loadSuppliersFromFirebase();
+        } else if (typeof window.initializeSuppliersPage === 'function') {
+          window.initializeSuppliersPage();
+        } else if (typeof window.loadSuppliers === 'function') {
+          window.loadSuppliers();
+        }
+        break;
+      case 'invoices':
+        // Special handling for invoice page which uses jQuery
+        if (typeof window.$ !== 'undefined') {
+          console.log('💰 Initializing invoice page functionality');
+          
+          // Initialize tab navigation manually
+          initializeInvoiceTabs();
+          
+          // Initialize other invoice functionality
+          if (typeof window.loadInvoiceList === 'function') {
+            console.log('🧾 Calling loadInvoiceList function');
+            window.loadInvoiceList();
+          } else {
+            console.log('⏳ Waiting for invoice scripts to load...');
+            // Try again in a moment
+            setTimeout(() => {
+              if (typeof window.loadInvoiceList === 'function') {
+                window.loadInvoiceList();
+              }
+              initializeInvoiceTabs(); // Try again
+            }, 1000);
+          }
+        } else {
+          console.log('⚠️ jQuery not loaded yet for invoices page');
+          // Try again after jQuery loads
+          setTimeout(() => {
+            if (typeof window.$ !== 'undefined') {
+              initializeInvoiceTabs();
+              if (typeof window.loadInvoiceList === 'function') {
+                window.loadInvoiceList();
+              }
+            }
+          }, 1500);
+        }
+        break;
+      default:
+        console.log(`No specific data loading function found for ${page}`);
+        // Try to call a generic initialization function if it exists
+        const initFunctionName = `initialize${page.charAt(0).toUpperCase() + page.slice(1)}Page`;
+        if (typeof window[initFunctionName] === 'function') {
+          window[initFunctionName]();
+        }
+    }
+  } catch (error) {
+    console.error(`Error loading data for ${page}:`, error);
+  }
+}
+
+    async function loadExternalFile(page) {
+      console.log(`🔍 Loading external file for page: ${page}`);
+      
+      // Map page names to actual file names
+      const pageFileMap = {
+        'invoices': 'invoice',
+        'return-invoices': 'returnInvoice', // Now separate file
+        'stocks': 'stocks',
+        'products': 'products',
+        'categories': 'categories',
+        'suppliers': 'suppliers',
+        'users': 'users',
+        'grn': 'grn'
+      };
+      
+      const actualFileName = pageFileMap[page] || page;
+      console.log(`📝 Mapped ${page} → ${actualFileName}.html`);
+      
+      const possiblePaths = [
+        `${actualFileName}.html`,
+        `./${actualFileName}.html`,
+        `./pages/${actualFileName}.html`,
+        `../${actualFileName}.html`
+      ];
+      
+      console.log(`📋 Will try these paths:`, possiblePaths);
+      
+      for (const path of possiblePaths) {
+        try {
+          console.log(`📂 Trying path: ${path}`);
+          const response = await fetch(path);
+          console.log(`📊 Response status: ${response.status} for ${path}`);
+          
+          if (response.ok) {
+            const html = await response.text();
+            console.log(`✅ Found at: ${path}, content length: ${html.length}`);
+            
+            // Parse and extract content
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            const bodyContent = doc.body && doc.body.innerHTML.trim() ? doc.body.innerHTML : html;
+            console.log(`📄 Extracted content length: ${bodyContent.length}`);
+            
+            return bodyContent;
+          } else {
+            console.log(`❌ HTTP ${response.status} for path: ${path}`);
+          }
+        } catch (err) {
+          console.log(`❌ Failed path: ${path} - ${err.message}`);
+          continue;
+        }
+      }
+      
+      console.error(`❌ Could not load ${page}.html from any path`);
+      throw new Error(`File ${page}.html not found in any attempted paths`);
+    }
+
+    async function loadEmbeddedContent(page) {
+      // Embedded content for file protocol mode
+      const embeddedContent = {
+        suppliers: createSuppliersContent(),
+        products: createProductsContent(),
+        categories: createCategoriesContent(),
+        stocks: createStocksContent(),
+        users: createUsersContent(),
+        invoices: createInvoicesContent(),
+        'return-invoices': createReturnInvoicesContent(),
+        promotions: createPromotionsContent(),
+        settings: createSettingsContent()
+      };
+      
+      return embeddedContent[page] || createPlaceholderContent(page);
+    }
+
+    function createLoadingHTML(page) {
+      return `
+        <div style="display: flex; justify-content: center; align-items: center; height: 200px; color: #fff;">
+          <div style="text-align: center;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem; color: #3498db;"></i>
+            <p>Loading ${page}...</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function showSetupRequiredMessage(page) {
+      const dynamicContent = document.getElementById('dynamicContent');
+      dynamicContent.innerHTML = `
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 400px; color: #e74c3c; padding: 2rem;">
+          <div style="text-align: center; max-width: 600px;">
+            <i class="fas fa-server" style="font-size: 4rem; margin-bottom: 2rem; color: #f39c12;"></i>
+            
+            <h2 style="margin-bottom: 1rem; color: #e74c3c;">Local Server Required</h2>
+            
+            <p style="color: #bdc3c7; margin-bottom: 2rem; line-height: 1.6;">
+              The <strong>${page}</strong> page requires a local server to function properly. 
+              You're currently running the app directly from files.
+            </p>
+            
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; flex-wrap: wrap;">
+              <button onclick="showSetupModal()" style="
+                background: #3498db; 
+                color: white; 
+                border: none; 
+                padding: 0.75rem 1.5rem; 
+                border-radius: 6px; 
+                cursor: pointer;
+                font-size: 0.875rem;
+              ">
+                <i class="fas fa-cog" style="margin-right: 0.5rem;"></i>
+                Setup Local Server
+              </button>
+              <button onclick="enableFileMode(); loadExternalPage('${page}')" style="
+                background: #e74c3c; 
+                color: white; 
+                border: none; 
+                padding: 0.75rem 1.5rem; 
+                border-radius: 6px; 
+                cursor: pointer;
+                font-size: 0.875rem;
+              ">
+                <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+                Continue with Limited Features
+              </button>
+            </div>
+            
+            <div style="background: #2c3e50; padding: 1rem; border-radius: 6px; border-left: 4px solid #f39c12;">
+              <p style="color: #bdc3c7; font-size: 0.75rem; margin: 0;">
+                <i class="fas fa-info-circle" style="margin-right: 0.5rem; color: #f39c12;"></i>
+                Use VS Code Live Server for the best experience
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function showErrorMessage(page, error) {
+      const dynamicContent = document.getElementById('dynamicContent');
+      dynamicContent.innerHTML = `
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 400px; color: #e74c3c; padding: 2rem;">
+          <div style="text-align: center; max-width: 600px;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1.5rem; color: #f39c12;"></i>
+            
+            <h3 style="margin-bottom: 1rem; color: #e74c3c;">Failed to Load ${page.charAt(0).toUpperCase() + page.slice(1)}</h3>
+            <p style="margin-bottom: 1rem; color: #bdc3c7;">The ${page} page could not be loaded.</p>
+            <p style="font-size: 0.875rem; color: #7f8c8d; margin-bottom: 2rem;">${error.message}</p>
+            
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; flex-wrap: wrap;">
+              <button onclick="loadExternalPage('${page}')" style="
+                background: #5865f2; 
+                color: white; 
+                border: none; 
+                padding: 0.75rem 1.5rem; 
+                border-radius: 6px; 
+                cursor: pointer;
+                font-size: 0.875rem;
+              ">
+                <i class="fas fa-sync-alt" style="margin-right: 0.5rem;"></i>
+                Retry
+              </button>
+              <button onclick="document.querySelector('[data-page=\\"dashboard\\"]').click()" style="
+                background: #6c757d; 
+                color: white; 
+                border: none; 
+                padding: 0.75rem 1.5rem; 
+                border-radius: 6px; 
+                cursor: pointer;
+                font-size: 0.875rem;
+              ">
+                <i class="fas fa-home" style="margin-right: 0.5rem;"></i>
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Embedded content creators for file protocol mode
+    function createSuppliersContent() {
+      return `
+        <div class="suppliers-container">
+          <div class="suppliers-header">
+            <div class="header-controls">
+              <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search suppliers...">
+              </div>
+              <select class="filter-select">
+                <option value="">All Categories</option>
+                <option value="electronics">Electronics</option>
+                <option value="clothing">Clothing</option>
+                <option value="food">Food & Beverage</option>
+                <option value="automotive">Automotive</option>
+              </select>
+              <select class="filter-select">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <button class="btn-add-supplier">
+                <i class="fas fa-plus"></i>
+                Add Supplier
+              </button>
+            </div>
+          </div>
+          
+          <div class="table-container">
+            <div class="table-wrapper">
+              <table class="suppliers-table">
+                <thead>
+                  <tr>
+                    <th>Supplier ID</th>
+                    <th>Name</th>
+                    <th>Contact Person</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="supplier-id">SUP001</td>
+                    <td class="supplier-name">Sample Supplier</td>
+                    <td class="contact-person">John Doe</td>
+                    <td class="phone">123-456-7890</td>
+                    <td class="email">john@example.com</td>
+                    <td><span class="category-badge electronics">Electronics</span></td>
+                    <td><span class="status-badge active">Active</span></td>
+                    <td class="actions">
+                      <button class="action-btn view-btn"><i class="fas fa-eye"></i></button>
+                      <button class="action-btn edit-btn"><i class="fas fa-edit"></i></button>
+                      <button class="action-btn delete-btn"><i class="fas fa-trash"></i></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div style="text-align: center; padding: 2rem; color: #f39c12; background: rgba(243, 156, 18, 0.1); margin: 1rem; border-radius: 8px;">
+            <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>
+            <strong>File Protocol Mode:</strong> Limited functionality. Use a local server for full features.
+          </div>
+        </div>
+      `;
+    }
+
+    function createProductsContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #3498db; margin-bottom: 1rem;">Products Management</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Manage your product inventory</p>
+          <div style="background: rgba(52, 152, 219, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #3498db;">
+            <i class="fas fa-box" style="font-size: 3rem; color: #3498db; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Products functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createCategoriesContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #e74c3c; margin-bottom: 1rem;">Categories Management</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Organize your product categories</p>
+          <div style="background: rgba(231, 76, 60, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #e74c3c;">
+            <i class="fas fa-tags" style="font-size: 3rem; color: #e74c3c; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Categories functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createStocksContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #2ecc71; margin-bottom: 1rem;">Stock Management</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Monitor and manage your inventory levels</p>
+          <div style="background: rgba(46, 204, 113, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #2ecc71;">
+            <i class="fas fa-warehouse" style="font-size: 3rem; color: #2ecc71; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Stock management functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createUsersContent() {
+  return `
+    <header class="header">
+      <button class="menu-toggle" id="menu-toggle" title="Toggle Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+      <h1 class="page-title">User Management</h1>
+    </header>
+    
+    <div class="content">
+      <div class="user-management-container">
+        <div class="toolbar">
+          <div class="search-box">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" placeholder="Search users..." id="user-search">
+          </div>
+          
+          <button class="btn btn-primary" id="add-user-btn">
+            <i class="fas fa-plus"></i>
+            Add User
+          </button>
+        </div>
+        
+        <div class="table-container">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Mobile</th>
+                <th>NIC</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <tr id="loadingRow">
+                <td colspan="7">
+                  <div class="loading-spinner"></div>
+                  <p>Loading users...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+    function createInvoicesContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #f39c12; margin-bottom: 1rem;">Invoice Management</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Create and manage invoices</p>
+          <div style="background: rgba(243, 156, 18, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #f39c12;">
+            <i class="fas fa-file-invoice" style="font-size: 3rem; color: #f39c12; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Invoice functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createReturnInvoicesContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #e67e22; margin-bottom: 1rem;">Return Invoice Management</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Handle product returns and refunds</p>
+          <div style="background: rgba(230, 126, 34, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #e67e22;">
+            <i class="fas fa-undo" style="font-size: 3rem; color: #e67e22; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Return invoice functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createPromotionsContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #1abc9c; margin-bottom: 1rem;">Promotions Management</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Create and manage promotional offers</p>
+          <div style="background: rgba(26, 188, 156, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #1abc9c;">
+            <i class="fas fa-percentage" style="font-size: 3rem; color: #1abc9c; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Promotions functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createSettingsContent() {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #34495e; margin-bottom: 1rem;">System Settings</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">Configure system preferences</p>
+          <div style="background: rgba(52, 73, 94, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #34495e;">
+            <i class="fas fa-cog" style="font-size: 3rem; color: #34495e; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Settings functionality will be available here</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createPlaceholderContent(page) {
+      return `
+        <div style="padding: 2rem; text-align: center; color: #fff;">
+          <h2 style="color: #95a5a6; margin-bottom: 1rem;">${page.charAt(0).toUpperCase() + page.slice(1)} Page</h2>
+          <p style="color: #bdc3c7; margin-bottom: 2rem;">This page is under development</p>
+          <div style="background: rgba(149, 165, 166, 0.1); padding: 2rem; border-radius: 8px; border-left: 4px solid #95a5a6;">
+            <i class="fas fa-construction" style="font-size: 3rem; color: #95a5a6; margin-bottom: 1rem;"></i>
+            <p style="color: #bdc3c7;">Content will be available soon</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function createGRNContent() {
+  return `
+    <div class="container">
+      <h1 class="form-title">Goods Received Note (GRN)</h1>
+      
+      <div class="form-section">
+        <h3>GRN Information</h3>
+        <div class="form-group row">
+          <div class="col">
+            <label for="grnNumber">GRN Number <span class="required">*</span></label>
+            <input type="text" id="grnNumber" readonly>
+          </div>
+          <div class="col">
+            <label for="purchaseDate">Purchase Date <span class="required">*</span></label>
+            <input type="date" id="purchaseDate">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="supplier">Supplier <span class="required">*</span></label>
+          <input type="text" id="supplier" placeholder="Enter supplier name">
+        </div>
+      </div>
+      
+      <!-- Add the rest of your GRN form content here -->
+      <!-- Make sure to include all the form elements from your grn.html -->
+      
+      <div style="text-align: center; padding: 2rem; color: #f39c12; background: rgba(243, 156, 18, 0.1); margin: 1rem; border-radius: 8px;">
+        <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>
+        <strong>File Protocol Mode:</strong> Limited functionality. Use a local server for full features.
+      </div>
+    </div>
+  `;
+}
+
+    
+
+    function loadPageCSS(page) {
+      console.log(`🎨 Loading CSS for page: ${page}`);
+      
+      // Remove any existing page-specific CSS
+      const existingCSS = document.querySelector('link[data-page-css]');
+      if (existingCSS) {
+        existingCSS.remove();
+        console.log(`🗑️ Removed existing CSS`);
+      }
+      
+      // Map page names to actual CSS file names (same mapping as HTML files)
+      const pageFileMap = {
+        'invoices': 'invoice',
+        'return-invoices': 'returnInvoice', // Now separate CSS file
+        'stocks': 'stocks',
+        'products': 'products',
+        'categories': 'categories',
+        'suppliers': 'suppliers',
+        'users': 'users',
+        'grn': 'grn'
+      };
+      
+      const actualFileName = pageFileMap[page] || page;
+      console.log(`📝 CSS mapping: ${page} → ${actualFileName}.css`);
+      
+      // Try to add new page-specific CSS
+      const cssLink = document.createElement('link');
+      cssLink.rel = 'stylesheet';
+      cssLink.href = `${actualFileName}.css`;
+      cssLink.setAttribute('data-page-css', page);
+      
+      cssLink.onload = function() {
+        console.log(`✅ Successfully loaded CSS: ${actualFileName}.css`);
+      };
+      
+      cssLink.onerror = function() {
+        console.log(`⚠️ CSS file ${actualFileName}.css not found (this is optional)`);
+      };
+      
+      document.head.appendChild(cssLink);
+    }
+
+    function fixCSSLinksInContent(container, page) {
+      console.log(`🔧 Fixing CSS links in loaded content for ${page}`);
+      
+      // Find any link elements in the loaded content
+      const linkElements = container.querySelectorAll('link[rel="stylesheet"]');
+      console.log(`🔍 Found ${linkElements.length} CSS links in content`);
+      
+      linkElements.forEach((link, index) => {
+        const originalHref = link.href;
+        console.log(`🔗 Processing CSS link ${index + 1}: ${originalHref}`);
+        
+        // Remove these link elements since we'll load CSS via loadPageCSS function
+        link.remove();
+        console.log(`🗑️ Removed CSS link from content: ${originalHref}`);
+      });
+      
+      // Also remove any style elements that might have relative imports
+      const styleElements = container.querySelectorAll('style');
+      styleElements.forEach((style, index) => {
+        if (style.innerHTML.includes('@import') || style.innerHTML.includes('url(')) {
+          console.log(`🗑️ Removed style element with relative paths: ${index + 1}`);
+          style.remove();
+        }
+      });
+    }
+
+    function executePageScripts(container) {
+      // Execute any scripts in the loaded content
+      const scripts = container.querySelectorAll('script');
+      console.log(`Found ${scripts.length} scripts to execute`);
+      
+      // First, ensure jQuery is loaded if needed
+      const needsJQuery = container.innerHTML.includes('jquery') || container.innerHTML.includes('$');
+      if (needsJQuery && typeof window.$ === 'undefined') {
+        console.log('📦 Loading jQuery...');
+        const jqueryScript = document.createElement('script');
+        jqueryScript.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+        jqueryScript.onload = () => {
+          console.log('✅ jQuery loaded successfully');
+          executeScriptsSequentially(scripts);
+        };
+        jqueryScript.onerror = () => {
+          console.error('❌ Failed to load jQuery');
+          executeScriptsSequentially(scripts);
+        };
+        document.head.appendChild(jqueryScript);
+      } else {
+        executeScriptsSequentially(scripts);
+      }
+      
+      function executeScriptsSequentially(scripts) {
+        let scriptIndex = 0;
+        
+        function executeNextScript() {
+          if (scriptIndex >= scripts.length) {
+            console.log('✅ All scripts processed');
+            return;
+          }
+          
+          const script = scripts[scriptIndex];
+          scriptIndex++;
+          
+          try {
+            const newScript = document.createElement('script');
+            
+            if (script.src) {
+              // External script
+              console.log(`📥 Loading external script: ${script.src}`);
+              newScript.src = script.src;
+              newScript.type = script.type || 'text/javascript';
+              
+              if (script.type === 'module') {
+                newScript.type = 'module';
+              }
+              
+              newScript.onload = () => {
+                console.log(`✅ Loaded external script: ${script.src}`);
+                executeNextScript();
+              };
+              newScript.onerror = () => {
+                console.log(`❌ Failed to load external script: ${script.src}`);
+                executeNextScript();
+              };
+              
+              document.head.appendChild(newScript);
+            } else {
+              // Inline script
+              console.log(`⚡ Executing inline script ${scriptIndex}`);
+              newScript.textContent = script.textContent;
+              newScript.type = script.type || 'text/javascript';
+              
+              if (script.type === 'module') {
+                newScript.type = 'module';
+              }
+              
+              document.head.appendChild(newScript);
+              
+              // Remove inline script after execution to avoid duplicates
+              setTimeout(() => {
+                if (newScript.parentNode) {
+                  newScript.parentNode.removeChild(newScript);
+                }
+              }, 100);
+              
+              executeNextScript();
+            }
+            
+          } catch (error) {
+            console.error(`Error executing script ${scriptIndex}:`, error);
+            executeNextScript();
+          }
+        }
+        
+        executeNextScript();
+      }
+    }
+
+    function triggerPageInitialization(page) {
+      console.log(`🚀 Triggering initialization for ${page} page`);
+      
+      // Create and dispatch a custom event that simulates DOMContentLoaded
+      const dynamicContent = document.getElementById('dynamicContent');
+      const initEvent = new CustomEvent('dynamicPageLoaded', {
+        detail: { page: page }
+      });
+      
+      // Dispatch on both the content container and document
+      dynamicContent.dispatchEvent(initEvent);
+      document.dispatchEvent(initEvent);
+      
+      // Also try to manually trigger common initialization patterns
+      if (page === 'products' && typeof window.initializeProductsPage === 'function') {
+        window.initializeProductsPage();
+      } else if (page === 'invoices' && typeof window.$ !== 'undefined') {
+        // For invoice page, initialize tabs and events
+        console.log('🔄 Triggering invoice page initialization');
+        initializeInvoiceTabs();
+      }
+    }
+
+    function initializePageSpecificFeatures(page) {
+      console.log(`🔧 Initializing features for ${page} page`);
+      
+      // Page-specific initialization
+      switch(page) {
+        case 'suppliers':
+          if (typeof window.initializeSuppliersPage === 'function') {
+            window.initializeSuppliersPage();
+            console.log(`✅ Suppliers page initialized`);
+          }
+          break;
+        case 'products':
+          if (typeof window.initializeProductsPage === 'function') {
+            window.initializeProductsPage();
+            console.log(`✅ Products page initialized`);
+          }
+          break;
+        case 'categories':
+          if (typeof window.initializeCategoriesPage === 'function') {
+            window.initializeCategoriesPage();
+            console.log(`✅ Categories page initialized`);
+          }
+          break;
+        case 'stocks':
+          if (typeof window.initializeStocksPage === 'function') {
+            window.initializeStocksPage();
+            console.log(`✅ Stocks page initialized`);
+          }
+          break;
+        case 'grn':
+          if (typeof window.initializeGRNPage === 'function') {
+            window.initializeGRNPage();
+            console.log(`✅ GRN page initialized`);
+          }
+          break;
+        case 'users':
+          if (typeof window.initializeUsersPage === 'function') {
+            window.initializeUsersPage();
+            console.log(`✅ Users page initialized`);
+          }
+          break;
+        case 'invoices':
+          if (typeof window.initializeInvoicesPage === 'function') {
+            window.initializeInvoicesPage();
+            console.log(`✅ Invoices page initialized`);
+          }
+          break;
+        default:
+          console.log(`ℹ️ Trying generic initialization for ${page}`);
+          // Try to call a generic initialization function if it exists
+          const initFunctionName = `initialize${page.charAt(0).toUpperCase() + page.slice(1)}Page`;
+          if (typeof window[initFunctionName] === 'function') {
+            window[initFunctionName]();
+            console.log(`✅ ${page} page initialized`);
+          } else {
+            console.log(`⚠️ No initialization function found for ${page}`);
+          }
+      }
+    }
+
+    function updateDateTime() {
+      const now = new Date();
+      
+      const timeOptions = {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      };
+      
+      const dateOptions = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      };
+      
+      // Update large center display
+      const timeElement = document.getElementById('currentTimeLarge');
+      const dateElement = document.getElementById('currentDateLarge');
+      
+      if (timeElement && dateElement) {
+        timeElement.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        dateElement.textContent = now.toLocaleDateString('en-US', dateOptions);
+      }
+    }
+
+    // Global functions for modal and file mode
+    window.showSetupModal = function() {
+      document.getElementById('setupModal').style.display = 'block';
+    };
+
+    window.closeSetupModal = function() {
+      document.getElementById('setupModal').style.display = 'none';
+    };
+
+    window.enableFileMode = function() {
+      window.FILE_MODE_ENABLED = true;
+      const banner = document.getElementById('fileProtocolBanner');
+      if (banner) {
+        banner.remove();
+        document.body.style.paddingTop = '0';
+      }
+      console.log('🔓 File mode enabled - using embedded content');
+    };
+
+    // Make loadExternalPage available globally for retry button
+    window.loadExternalPage = loadExternalPage;
+
+    // Initialize dashboard on first load
+    document.addEventListener('DOMContentLoaded', function() {
+      // Hide header initially since dashboard is default
+      const mainHeader = document.getElementById('mainHeader');
+      if (mainHeader) {
+        mainHeader.classList.add('hidden');
+      }
+
+      // Fix cursor issues by ensuring proper event handling
+      document.body.style.cursor = 'default';
+      
+      // Ensure all clickable elements have proper cursor
+      const clickableElements = document.querySelectorAll('button, a, .nav-link, .logout-btn, [onclick], input, select, textarea');
+      clickableElements.forEach(element => {
+        element.style.cursor = 'pointer';
+      });
+    });
+
+    // Logout function
+    window.logout = async function() {
+      try {
+        await signOut(auth);
+        
+        // Clear all session data
+        localStorage.removeItem("userSession");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("selectedRole");
+        localStorage.removeItem("selectedRoleName");
+        localStorage.removeItem("sessionId");
+        
+        sessionStorage.removeItem("userSession");
+        sessionStorage.removeItem("authToken");
+        
+        window.location.href = "selection.html";
+        
+      } catch (error) {
+        console.error("Logout error:", error);
+        window.location.href = "selection.html";
+      }
+    };
+    
+    // Debug functions for troubleshooting
+    window.checkScriptExecution = function() {
+      console.log('🔍 Checking script execution status...');
+      const pageFunctions = Object.keys(window).filter(key => 
+        key.includes('load') || key.includes('initialize') || key.includes('Products') || key.includes('Categories') || key.includes('Suppliers') || key.includes('Stock')
+      );
+      console.log('Available page functions:', pageFunctions);
+      
+      // Check for specific page indicators
+      const pageIndicators = {
+        'Products (loadProductsFromFirebase)': typeof window.loadProductsFromFirebase,
+        'Products (initializeProductsPage)': typeof window.initializeProductsPage,
+        'Categories (loadCategoriesFromFirebase)': typeof window.loadCategoriesFromFirebase,
+        'Categories (initializeCategoriesPage)': typeof window.initializeCategoriesPage,
+        'Suppliers (loadSuppliersFromFirebase)': typeof window.loadSuppliersFromFirebase,
+        'Suppliers (initializeSuppliersPage)': typeof window.initializeSuppliersPage,
+        'Stocks (loadStockData)': typeof window.loadStockData,
+        'Users (loadUsersFromFirebase)': typeof window.loadUsersFromFirebase
+      };
+      
+      console.table(pageIndicators);
+      return pageIndicators;
+    };
+    
+    // Force data load function
+    window.forceDataLoad = function(page) {
+      console.log(`🚀 Force loading data for ${page}...`);
+      return loadPageData(page);
+    };
+    
+    // Test global Firebase availability
+    window.testGlobalFirebase = function() {
+      console.log('🔍 Testing global Firebase instances...');
+      console.log('window.globalAuth:', !!window.globalAuth);
+      console.log('window.globalDb:', !!window.globalDb);
+      console.log('globalAuth user:', window.globalAuth?.currentUser?.email);
+      return { auth: !!window.globalAuth, db: !!window.globalDb };
+    };
+    
+    console.log('🛠️ Debug functions loaded: checkScriptExecution(), forceDataLoad(page), testGlobalFirebase()');
+  </script>
+</body>
+</html>
