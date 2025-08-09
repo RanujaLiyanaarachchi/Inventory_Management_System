@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Management</title>
+    <link rel="stylesheet" href="stocks.css">
+    <!-- Firebase SDK v9 (Modular) -->
+    <!-- Firebase v9 Compat SDK for non-module use -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-compat.js"></script>
+    
+    <script>
+        console.log('🚀 Stocks script starting (non-module version)...');
+        
+        // Use Firebase v9 compat API
+        console.log('📦 Using Firebase compat API');
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBKjE2SmRvgQczTmcKZrEFD0pyjLBMD4gg",
+            authDomain: "inventorypro-lk.firebaseapp.com",
+            projectId: "inventorypro-lk",
+            storageBucket: "inventorypro-lk.appspot.com",
+            messagingSenderId: "594998429191",
+            appId: "1:594998429191:web:518f4b7f88eb7c0a2d0ca2"
+        };
+
+        // Initialize Firebase - Use global instances if available (from dashboard)
+        let db, auth;
+        
+        console.log('🔍 Checking for global Firebase instances...');
+        console.log('window.globalDb:', !!window.globalDb);
+        console.log('window.globalAuth:', !!window.globalAuth);
+        console.log('window.globalAuth user:', window.globalAuth?.currentUser?.email);
+        
+        if (window.globalDb && window.globalAuth) {
+            console.log('✅ Using global Firebase instances from dashboard');
+            db = window.globalDb;
+            auth = window.globalAuth;
+            console.log('✅ Global instances assigned - Auth user:', auth.currentUser?.email);
+        } else {
+            console.log('🔧 Creating new Firebase instances using compat API');
+            console.log('Missing globalDb:', !window.globalDb);
+            console.log('Missing globalAuth:', !window.globalAuth);
+            
+            // Initialize Firebase using compat API
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            auth = firebase.auth();
+        }
+
+        // Global variables
+        let currentUser = null;
+        let stockData = [];
+        let filteredData = [];
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Set up auth state listener
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    loadStockData();
+                } else {
+                    // Redirect to login if not authenticated
+                    window.location.href = 'login.html';
+                }
+            });
+            
+            // Set up event listeners
+            document.getElementById('searchBtn').addEventListener('click', searchStock);
+            document.getElementById('resetBtn').addEventListener('click', resetSearch);
+            document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+        });
+
+        // Load stock data from Firestore
+        async function loadStockData() {
+            try {
+                const querySnapshot = await db.collection('products').get();
+                stockData = [];
+                
+                querySnapshot.forEach((doc) => {
+                    const product = doc.data();
+                    stockData.push({
+                        id: doc.id,
+                        code: product.productCode,
+                        name: product.productName,
+                        category: product.category || 'Uncategorized',
+                        barcode: product.barcode || '',
+                        currentStock: product.stock || 0,
+                        minStock: product.minStockLevel || 5, // Default min stock level
+                        purchasePrice: product.purchasePrice || 0,
+                        sellingPrice: product.sellingPrice || 0,
+                        retailPrice: product.retailPrice || 0,
+                        lastUpdated: product.lastUpdated?.toDate() || new Date()
+                    });
+                });
+                
+                // Calculate summary statistics
+                updateSummaryCards();
+                renderStockTable(stockData);
+                
+            } catch (error) {
+                console.error('Error loading stock data:', error);
+                alert('Error loading stock data: ' + error.message);
+            }
+        }
+
+        // Update summary cards
+        function updateSummaryCards() {
+            const totalProducts = stockData.length;
+            const inStock = stockData.filter(p => p.currentStock > p.minStock).length;
+            const lowStock = stockData.filter(p => p.currentStock > 0 && p.currentStock <= p.minStock).length;
+            const outOfStock = stockData.filter(p => p.currentStock === 0).length;
+            
+            document.querySelector('.card-total .value').textContent = totalProducts;
+            document.querySelector('.card-available .value').textContent = inStock;
+            document.querySelector('.card-low .value').textContent = lowStock;
+            document.querySelector('.card-out .value').textContent = outOfStock;
+        }
+
+        // Render stock table
+        function renderStockTable(data) {
+            const tbody = document.querySelector('#stockTable tbody');
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center">No products found</td></tr>';
+                return;
+            }
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // Determine stock status
+                let statusClass, statusText, statusIndicator;
+                
+                if (item.currentStock === 0) {
+                    statusClass = 'out-of-stock';
+                    statusText = 'Out of Stock';
+                    statusIndicator = 'status-out';
+                } else if (item.currentStock <= item.minStock) {
+                    statusClass = 'low-stock';
+                    statusText = 'Low Stock';
+                    statusIndicator = 'status-low';
+                } else {
+                    statusClass = 'in-stock';
+                    statusText = 'In Stock';
+                    statusIndicator = 'status-available';
+                }
+                
+                row.className = statusClass;
+                row.innerHTML = `
+                    <td>${item.code}</td>
+                    <td>${item.name}</td>
+                    <td>${item.category}</td>
+                    <td>${item.barcode || '-'}</td>
+                    <td>${item.currentStock}</td>
+                    <td>${item.minStock}</td>
+                    <td><span class="status-indicator ${statusIndicator}"></span> ${statusText}</td>
+                    <td>${item.purchasePrice.toFixed(2)}</td>
+                    <td>${item.sellingPrice.toFixed(2)}</td>
+                    <td>${item.retailPrice.toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-warning btn-adjust" data-id="${item.id}">Adjust</button>
+                        <button class="btn btn-danger btn-delete" data-id="${item.id}">Delete</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            // Add event listeners to action buttons
+            document.querySelectorAll('.btn-adjust').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const productId = this.getAttribute('data-id');
+                    showAdjustStockModal(productId);
+                });
+            });
+            
+            document.querySelectorAll('.btn-delete').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const productId = this.getAttribute('data-id');
+                    confirmDeleteProduct(productId);
+                });
+            });
+        }
+
+        // Search stock
+        function searchStock() {
+            const searchTerm = document.getElementById('searchTerm').value.toLowerCase();
+            const category = document.getElementById('category').value;
+            const barcode = document.getElementById('barcode').value;
+            const stockStatus = document.getElementById('stockStatus').value;
+            
+            filteredData = stockData.filter(item => {
+                const matchesSearch = searchTerm === '' || 
+                    item.name.toLowerCase().includes(searchTerm) || 
+                    item.code.toLowerCase().includes(searchTerm);
+                
+                const matchesCategory = category === '' || item.category.toLowerCase() === category;
+                const matchesBarcode = barcode === '' || (item.barcode && item.barcode.includes(barcode));
+                
+                let matchesStatus = true;
+                if (stockStatus === 'in_stock') {
+                    matchesStatus = item.currentStock > item.minStock;
+                } else if (stockStatus === 'low_stock') {
+                    matchesStatus = item.currentStock > 0 && item.currentStock <= item.minStock;
+                } else if (stockStatus === 'out_of_stock') {
+                    matchesStatus = item.currentStock === 0;
+                }
+                
+                return matchesSearch && matchesCategory && matchesBarcode && matchesStatus;
+            });
+            
+            renderStockTable(filteredData);
+        }
+
+        // Reset search
+        function resetSearch() {
+            document.getElementById('searchTerm').value = '';
+            document.getElementById('category').value = '';
+            document.getElementById('barcode').value = '';
+            document.getElementById('stockStatus').value = '';
+            
+            renderStockTable(stockData);
+        }
+
+        // Export to Excel
+        function exportToExcel() {
+            const dataToExport = filteredData.length > 0 ? filteredData : stockData;
+            
+            if (dataToExport.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            
+            // Create a temporary table for export
+            const tempTable = document.createElement('table');
+            tempTable.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Product Code</th>
+                        <th>Product Name</th>
+                        <th>Category</th>
+                        <th>Barcode</th>
+                        <th>Current Stock</th>
+                        <th>Min. Stock Level</th>
+                        <th>Status</th>
+                        <th>Purchase Price (Rs)</th>
+                        <th>Selling Price (Rs)</th>
+                        <th>Retail Price (Rs)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${dataToExport.map(item => `
+                        <tr>
+                            <td>${item.code}</td>
+                            <td>${item.name}</td>
+                            <td>${item.category}</td>
+                            <td>${item.barcode || '-'}</td>
+                            <td>${item.currentStock}</td>
+                            <td>${item.minStock}</td>
+                            <td>${
+                                item.currentStock === 0 ? 'Out of Stock' : 
+                                item.currentStock <= item.minStock ? 'Low Stock' : 'In Stock'
+                            }</td>
+                            <td>${item.purchasePrice.toFixed(2)}</td>
+                            <td>${item.sellingPrice.toFixed(2)}</td>
+                            <td>${item.retailPrice.toFixed(2)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            
+            // Export the table to Excel
+            // tableToExcel(tempTable, 'Stock_Report');  // Temporarily disabled
+            console.log('📊 Export function called (temporarily disabled)');
+        }
+
+        // Show adjust stock modal
+        function showAdjustStockModal(productId) {
+            const product = stockData.find(p => p.id === productId);
+            if (!product) return;
+            
+            // Create modal HTML
+            const modalHTML = `
+                <div class="modal-overlay" id="adjustModal">
+                    <div class="modal-content">
+                        <h3>Adjust Stock: ${product.name}</h3>
+                        <div class="form-group">
+                            <label>Current Stock: ${product.currentStock}</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="adjustType">Adjustment Type</label>
+                            <select id="adjustType">
+                                <option value="add">Add Stock</option>
+                                <option value="remove">Remove Stock</option>
+                                <option value="set">Set Stock</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="adjustAmount">Amount</label>
+                            <input type="number" id="adjustAmount" min="1" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="adjustReason">Reason</label>
+                            <input type="text" id="adjustReason" placeholder="Enter reason for adjustment">
+                        </div>
+                        <div class="modal-buttons">
+                            <button class="btn btn-secondary" id="cancelAdjust">Cancel</button>
+                            <button class="btn btn-primary" id="confirmAdjust">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to DOM
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Add event listeners
+            document.getElementById('cancelAdjust').addEventListener('click', () => {
+                document.getElementById('adjustModal').remove();
+            });
+            
+            document.getElementById('confirmAdjust').addEventListener('click', async () => {
+                await adjustStock(product);
+                document.getElementById('adjustModal').remove();
+            });
+        }
+
+        // Adjust stock (Firestore update)
+        async function adjustStock(product) {
+            const adjustType = document.getElementById('adjustType').value;
+            const amount = parseInt(document.getElementById('adjustAmount').value);
+            const reason = document.getElementById('adjustReason').value.trim();
+            
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            
+            try {
+                let newStock = product.currentStock;
+                
+                switch (adjustType) {
+                    case 'add':
+                        newStock += amount;
+                        break;
+                    case 'remove':
+                        newStock = Math.max(0, product.currentStock - amount);
+                        break;
+                    case 'set':
+                        newStock = amount;
+                        break;
+                }
+                
+                // Update in Firestore
+                await setDoc(doc(db, 'products', product.id), {
+                    stock: newStock,
+                    lastUpdated: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                }, { merge: true });
+                
+                // Record stock adjustment history
+                await addDoc(collection(db, 'stockAdjustments'), {
+                    productId: product.id,
+                    productCode: product.code,
+                    productName: product.name,
+                    previousStock: product.currentStock,
+                    newStock,
+                    adjustmentType: adjustType,
+                    amount,
+                    reason,
+                    adjustedBy: currentUser.uid,
+                    adjustedAt: serverTimestamp()
+                });
+                
+                // Reload stock data
+                await loadStockData();
+                alert('Stock adjusted successfully!');
+                
+            } catch (error) {
+                console.error('Error adjusting stock:', error);
+                alert('Error adjusting stock: ' + error.message);
+            }
+        }
+
+        // Confirm product deletion
+        function confirmDeleteProduct(productId) {
+            if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+                deleteProduct(productId);
+            }
+        }
+
+        // Delete product from Firestore
+        async function deleteProduct(productId) {
+            try {
+                // In a real app, you might want to soft delete by setting a flag
+                await deleteDoc(doc(db, 'products', productId));
+                
+                // Reload stock data
+                await loadStockData();
+                alert('Product deleted successfully!');
+                
+            } catch (error) {
+                console.error('Error deleting product:', error);
+                alert('Error deleting product: ' + error.message);
+            }
+        }
+
+        // Expose functions globally for dashboard integration (ES6 module scope)
+        globalThis.loadStockData = loadStockData;
+        globalThis.searchStock = searchStock;
+        globalThis.resetSearch = resetSearch;
+        globalThis.exportToExcel = exportToExcel;
+        
+        // Also expose to window for compatibility
+        if (typeof window !== 'undefined') {
+            window.loadStockData = loadStockData;
+            window.searchStock = searchStock;
+            window.resetSearch = resetSearch;
+            window.exportToExcel = exportToExcel;
+        }
+        
+        console.log('✅ Stocks page functions exposed globally');
+    </script>
+    
+    <script>
+        // Additional non-module script to ensure global exposure
+        setTimeout(() => {
+            console.log('🔧 Verifying stocks functions are globally available...');
+            console.log('loadStockData type:', typeof window.loadStockData);
+            console.log('searchStock type:', typeof window.searchStock);
+            console.log('resetSearch type:', typeof window.resetSearch);
+            console.log('exportToExcel type:', typeof window.exportToExcel);
+            
+            if (typeof window.loadStockData === 'function') {
+                console.log('✅ Stocks functions successfully exposed to window');
+            } else {
+                console.warn('⚠️ Stocks functions not found on window object');
+                
+                // Try to find functions in globalThis
+                console.log('Checking globalThis...');
+                console.log('globalThis.loadStockData:', typeof globalThis.loadStockData);
+                
+                // If found in globalThis but not window, manually assign
+                if (typeof globalThis.loadStockData === 'function') {
+                    console.log('🔧 Found in globalThis, assigning to window...');
+                    window.loadStockData = globalThis.loadStockData;
+                    window.searchStock = globalThis.searchStock;
+                    window.resetSearch = globalThis.resetSearch;
+                    window.exportToExcel = globalThis.exportToExcel;
+                    console.log('✅ Functions manually assigned to window');
+                }
+            }
+        }, 100);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="page-title">Stock Management</h1>
+        
+        <div class="summary-cards">
+            <div class="summary-card card-total">
+                <h3>Total Products</h3>
+                <div class="value">0</div>
+            </div>
+            <div class="summary-card card-available">
+                <h3>In Stock</h3>
+                <div class="value">0</div>
+            </div>
+            <div class="summary-card card-low">
+                <h3>Low Stock</h3>
+                <div class="value">0</div>
+            </div>
+            <div class="summary-card card-out">
+                <h3>Out of Stock</h3>
+                <div class="value">0</div>
+            </div>
+        </div>
+        
+        <div class="search-controls">
+            <div class="search-row">
+                <input type="text" id="searchTerm" placeholder="Search by name or code">
+                <label for="category" class="visually-hidden">Category</label>
+                <select id="category">
+                    <option value="">All Categories</option>
+                    <!-- Categories will be populated dynamically -->
+                </select>
+                <input type="text" id="barcode" placeholder="Barcode">
+                <select id="stockStatus">
+                    <option value="">All Status</option>
+                    <option value="in_stock">In Stock</option>
+                    <option value="low_stock">Low Stock</option>
+                    <option value="out_of_stock">Out of Stock</option>
+                </select>
+                <button id="searchBtn" class="btn btn-primary">Search</button>
+                <button id="resetBtn" class="btn btn-secondary">Reset</button>
+                <button id="exportBtn" class="btn btn-success">Export to Excel</button>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table id="stockTable" class="stock-table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Product Name</th>
+                        <th>Category</th>
+                        <th>Barcode</th>
+                        <th>Current Stock</th>
+                        <th>Min Stock</th>
+                        <th>Status</th>
+                        <th>Purchase Price</th>
+                        <th>Selling Price</th>
+                        <th>Retail Price</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Table content will be populated dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
