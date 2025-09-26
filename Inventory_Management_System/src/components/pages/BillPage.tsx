@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { collection, addDoc, updateDoc, doc, arrayUnion, increment, getDocs, query, where, writeBatch, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { companyConfig, formatFooter, formatDialogFooter } from '../../config/companyConfig';
 
 // Firebase product interface (same as your Products page)
 interface Product {
@@ -51,8 +52,8 @@ export function BillPage() {
   const [amountReceived, setAmountReceived] = useState('');
   const [discount, setDiscount] = useState(0);
   const [discountInput, setDiscountInput] = useState('0'); // Add separate input state for better UX
-  const [taxRate, setTaxRate] = useState(10); // Add editable tax rate state
-  const [taxRateInput, setTaxRateInput] = useState('10'); // Add separate input state for better UX
+  const [taxRate, setTaxRate] = useState(0); // Add editable tax rate state
+  const [taxRateInput, setTaxRateInput] = useState('0'); // Add separate input state for better UX
   const [showBillDialog, setShowBillDialog] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -307,8 +308,8 @@ export function BillPage() {
       setAmountReceived('');
       setDiscount(0);
       setDiscountInput('0'); // Reset discount input to default
-      setTaxRate(10); // Reset tax rate to default
-      setTaxRateInput('10'); // Reset tax rate input to default
+      setTaxRate(0); // Reset tax rate to default
+      setTaxRateInput('0'); // Reset tax rate input to default
       setSearchTerm('');
 
       toast.success('Payment processed successfully! Invoice saved to database.');
@@ -381,8 +382,12 @@ export function BillPage() {
     <body>
       <div class="receipt">
         <div class="header">
-          <div class="brand">Inventory Management</div>
-          <div style="font-size:13px;font-weight:600;margin-top:4px;">INVOICE</div>
+          <div class="brand">${companyConfig.name}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${companyConfig.address}</div>
+          <div style="font-size:11px;color:#6b7280;">${companyConfig.city}</div>
+          <div style="font-size:11px;color:#6b7280;">Phone: ${companyConfig.phone}</div>
+          <div style="font-size:11px;color:#6b7280;">Email: ${companyConfig.email}</div>
+          <div style="font-size:13px;font-weight:600;margin-top:8px;">INVOICE</div>
           <div class="meta">
             <div>Invoice: <strong>${lastInvoice.id}</strong></div>
             <div>Date: ${lastInvoice.date}</div>
@@ -425,7 +430,12 @@ export function BillPage() {
         </div>
 
         <div class="footer">
-          Thank you for your purchase<br/>Powered by Inventory Management System
+          <p>${companyConfig.footerMessage || 'Thank you for your purchase'}</p>
+          <div style="margin-top: 8px; font-size: 10px; color: #9ca3af;">
+            Software by ${companyConfig.softwareProvider.name}<br/>
+            ${companyConfig.softwareProvider.phone}
+            ${companyConfig.softwareProvider.email ? `<br/>${companyConfig.softwareProvider.email}` : ''}
+          </div>
         </div>
       </div>
     </body>
@@ -694,6 +704,12 @@ export function BillPage() {
       <Dialog open={showBillDialog} onOpenChange={setShowBillDialog}>
         <DialogContent className="max-w-md p-0 overflow-hidden rounded-xl shadow-lg">
           <div className="bg-gradient-to-r from-primary to-primary/70 text-white px-6 py-4">
+            <div className="text-center mb-3">
+              <div className="text-lg font-semibold">{companyConfig.name}</div>
+              <div className="text-xs opacity-90">{companyConfig.address}</div>
+              <div className="text-xs opacity-90">{companyConfig.city}</div>
+              <div className="text-xs opacity-90">Phone: {companyConfig.phone}</div>
+            </div>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">INVOICE</div>
@@ -770,9 +786,6 @@ export function BillPage() {
                 </div>
               </div>
 
-              <div className="mt-6 text-center text-xs text-muted-foreground">
-                Thank you for your purchase!<br/>Powered by Inventory Management System
-              </div>
             </div>
           )}
 

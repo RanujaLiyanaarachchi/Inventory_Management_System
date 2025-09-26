@@ -27,6 +27,7 @@ import {
   setDoc,
   onSnapshot // Add this for real-time updates
 } from 'firebase/firestore';
+import { companyConfig, formatCompanyHeader, formatBankDetails, formatFooter, formatDialogFooter } from '../../config/companyConfig';
 
 // Product interface matching your products page
 interface Product {
@@ -392,12 +393,7 @@ export function Invoice() {
             <h1>INVOICE</h1>
           </div>
           
-          <div class="company-info">
-            <h2>Your Company Name</h2>
-            <p>123 Business Street, City</p>
-            <p>Phone: (123) 456-7890</p>
-            <p>Email: info@yourcompany.com</p>
-          </div>
+          ${formatCompanyHeader(companyConfig)}
           
           <div class="invoice-details">
             <p><strong>Invoice Number:</strong> ${invoice.invoiceId}</p>
@@ -446,17 +442,9 @@ export function Invoice() {
             </tbody>
           </table>
           
-          <div class="payment-info">
-            <h3>Payment Information:</h3>
-            <p>Bank: National Bank</p>
-            <p>Account: 1234567890</p>
-            <p>Payment Terms: Net 30</p>
-          </div>
+          ${formatBankDetails(companyConfig)}
           
-          <div class="footer">
-            <p>Thank you for your business!</p>
-            <p>© ${new Date().getFullYear()} Your Company Name</p>
-          </div>
+          ${formatFooter(companyConfig)}
         </body>
       </html>
     `;
@@ -848,6 +836,8 @@ export function Invoice() {
                   </Button>
                 </div>
               </div>
+              
+              ${formatDialogFooter(companyConfig)}
             </div>
           )}
           
