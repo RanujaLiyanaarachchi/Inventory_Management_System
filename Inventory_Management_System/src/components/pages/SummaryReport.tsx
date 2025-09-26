@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -6,41 +6,348 @@ import {
   FileText, 
   Package, 
   DollarSign, 
-  Download 
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from "sonner";
 
+// Firebase imports
+import { db } from '../../firebase';
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  orderBy,
+  where,
+  onSnapshot
+} from 'firebase/firestore';
+
+// Interfaces
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  supplier: string;
+  costPrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStock: number;
+  status: string;
+  barcode: string;
+  imageUrl: string | null;
+  description?: string;
+  weight?: string;
+  dimensions?: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+interface Invoice {
+  id: string;
+  invoiceId: string;
+  customer: string;
+  customerEmail: string;
+  date: string;
+  amount: number;
+  status: string;
+  items: InvoiceItem[];
+  totalItems: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface InvoiceItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  productCount: number;
+  status: 'Active' | 'Inactive';
+  createdDate: string;
+}
+
+interface Supplier {
+  supplierId: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  category: string;
+  status: 'Active' | 'Inactive';
+  contactPerson: string;
+  paymentTerms: string;
+  creditLimit: number;
+  notes: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export function SummaryReport() {
-  const reportData = {
-    totalSales: 125430.50,
-    totalOrders: 347,
-    totalProducts: 1250,
-    lowStockItems: 23,
-    totalCustomers: 89,
-    activeSuppliers: 12,
-    monthlyGrowth: 15.3,
-    topSellingProducts: [
-      { name: 'iPhone 14 Pro', sales: 45, revenue: 58455 },
-      { name: 'Samsung Galaxy S23', sales: 32, revenue: 35168 },
-      { name: 'MacBook Pro 14"', sales: 18, revenue: 37798 }
-    ],
-    salesByCategory: [
-      { category: 'Electronics', sales: 85400, percentage: 68 },
-      { category: 'Clothing', sales: 25600, percentage: 20 },
-      { category: 'Books', sales: 14430, percentage: 12 }
-    ]
+  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  // Real-time data for report
+  const [reportData, setReportData] = useState({
+    totalSales: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    lowStockItems: 0,
+    totalCustomers: 0,
+    activeSuppliers: 0,
+    monthlyGrowth: 0,
+    topSellingProducts: [] as { name: string; sales: number; revenue: number }[],
+    salesByCategory: [] as { category: string; sales: number; percentage: number }[]
+  });
+
+  // Fetch products from Firebase
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const productsQuery = query(collection(db, 'products'), orderBy('name', 'asc'));
+        const unsubscribe = onSnapshot(productsQuery, 
+          (querySnapshot) => {
+            const productsData: Product[] = [];
+            querySnapshot.forEach((doc) => {
+              productsData.push({ id: doc.id, ...doc.data() } as Product);
+            });
+            setProducts(productsData);
+          },
+          (error) => {
+            console.error('Error fetching products:', error);
+            toast.error('Error fetching products');
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  // Fetch invoices from Firebase
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        const invoicesQuery = query(collection(db, 'invoices'), orderBy('date', 'desc'));
+        const unsubscribe = onSnapshot(invoicesQuery, 
+          (querySnapshot) => {
+            const invoicesData: Invoice[] = [];
+            querySnapshot.forEach((doc) => {
+              invoicesData.push({ id: doc.id, ...doc.data() } as Invoice);
+            });
+            setInvoices(invoicesData);
+          },
+          (error) => {
+            console.error('Error fetching invoices:', error);
+            toast.error('Error fetching invoices');
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      }
+    };
+
+    fetchInvoices();
+  }, []);
+
+  // Fetch categories from Firebase
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const categoriesQuery = query(collection(db, 'categories'), orderBy('name', 'asc'));
+        const unsubscribe = onSnapshot(categoriesQuery, 
+          (querySnapshot) => {
+            const categoriesData: Category[] = [];
+            querySnapshot.forEach((doc) => {
+              categoriesData.push({ id: doc.id, ...doc.data() } as Category);
+            });
+            setCategories(categoriesData);
+          },
+          (error) => {
+            console.error('Error fetching categories:', error);
+            toast.error('Error fetching categories');
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Fetch suppliers from Firebase
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const suppliersQuery = query(collection(db, 'suppliers'), orderBy('name', 'asc'));
+        const unsubscribe = onSnapshot(suppliersQuery, 
+          (querySnapshot) => {
+            const suppliersData: Supplier[] = [];
+            querySnapshot.forEach((doc) => {
+              suppliersData.push({ ...doc.data() } as Supplier);
+            });
+            setSuppliers(suppliersData);
+          },
+          (error) => {
+            console.error('Error fetching suppliers:', error);
+            toast.error('Error fetching suppliers');
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching suppliers:', error);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
+
+  // Calculate report data when data changes
+  useEffect(() => {
+    if (products.length > 0 || invoices.length > 0 || categories.length > 0 || suppliers.length > 0) {
+      calculateReportData();
+      setLoading(false);
+    }
+  }, [products, invoices, categories, suppliers]);
+
+  const calculateReportData = () => {
+    // Calculate total sales from paid invoices
+    const totalSales = invoices
+      .filter(invoice => invoice.status === 'Paid')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+
+    // Calculate total orders
+    const totalOrders = invoices.length;
+
+    // Calculate total products
+    const totalProducts = products.length;
+
+    // Calculate low stock items (stock <= minStock)
+    const lowStockItems = products.filter(product => product.stock <= product.minStock).length;
+
+    // Get unique customers from invoices
+    const uniqueCustomers = new Set(invoices.map(invoice => invoice.customer));
+    const totalCustomers = uniqueCustomers.size;
+
+    // Count active suppliers
+    const activeSuppliers = suppliers.filter(supplier => supplier.status === 'Active').length;
+
+    // Calculate monthly growth (simplified - compare current month with previous month)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    const currentMonthInvoices = invoices.filter(invoice => {
+      const invoiceDate = new Date(invoice.date);
+      return invoiceDate.getMonth() === currentMonth && invoiceDate.getFullYear() === currentYear;
+    });
+    
+    const previousMonthInvoices = invoices.filter(invoice => {
+      const invoiceDate = new Date(invoice.date);
+      const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      return invoiceDate.getMonth() === prevMonth && invoiceDate.getFullYear() === prevYear;
+    });
+
+    const currentMonthSales = currentMonthInvoices
+      .filter(invoice => invoice.status === 'Paid')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+
+    const previousMonthSales = previousMonthInvoices
+      .filter(invoice => invoice.status === 'Paid')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+
+    const monthlyGrowth = previousMonthSales > 0 
+      ? ((currentMonthSales - previousMonthSales) / previousMonthSales) * 100 
+      : currentMonthSales > 0 ? 100 : 0;
+
+    // Calculate top selling products
+    const productSales: { [key: string]: { name: string; sales: number; revenue: number } } = {};
+
+    invoices.forEach(invoice => {
+      invoice.items.forEach(item => {
+        if (!productSales[item.productId]) {
+          productSales[item.productId] = {
+            name: item.productName,
+            sales: 0,
+            revenue: 0
+          };
+        }
+        productSales[item.productId].sales += item.quantity;
+        productSales[item.productId].revenue += item.total;
+      });
+    });
+
+    const topSellingProducts = Object.values(productSales)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 3);
+
+    // Calculate sales by category
+    const categorySales: { [key: string]: number } = {};
+
+    invoices.forEach(invoice => {
+      invoice.items.forEach(item => {
+        const product = products.find(p => p.id === item.productId);
+        if (product) {
+          const category = product.category;
+          if (!categorySales[category]) {
+            categorySales[category] = 0;
+          }
+          categorySales[category] += item.total;
+        }
+      });
+    });
+
+    const totalCategorySales = Object.values(categorySales).reduce((sum, sales) => sum + sales, 0);
+    const salesByCategory = Object.entries(categorySales).map(([category, sales]) => ({
+      category,
+      sales,
+      percentage: totalCategorySales > 0 ? (sales / totalCategorySales) * 100 : 0
+    })).sort((a, b) => b.sales - a.sales);
+
+    setReportData({
+      totalSales,
+      totalOrders,
+      totalProducts,
+      lowStockItems,
+      totalCustomers,
+      activeSuppliers,
+      monthlyGrowth: Math.round(monthlyGrowth * 100) / 100, // Round to 2 decimal places
+      topSellingProducts,
+      salesByCategory
+    });
+  };
+
+  const refreshData = () => {
+    setLoading(true);
+    calculateReportData();
+    setTimeout(() => setLoading(false), 500);
+    toast.success('Report data refreshed');
   };
 
   const exportToPDF = () => {
-    // In a real implementation, this would use a PDF generation library
-    // For now, we'll simulate the export with a success message
-    
-    // Show a loading state
     toast.loading('Generating PDF...');
     
-    // Simulate API delay
     setTimeout(() => {
-      // Create a simple "download" by opening a new window with formatted content
       const reportWindow = window.open('', '_blank');
       if (!reportWindow) {
         toast.dismiss();
@@ -159,14 +466,14 @@ export function SummaryReport() {
             <div class="metrics">
               <div class="metric">
                 <div class="metric-title">Total Sales</div>
-                <div class="metric-value">$${reportData.totalSales.toLocaleString()}</div>
+                <div class="metric-value">LKR ${reportData.totalSales.toLocaleString()}</div>
                 <div class="metric-trend">+${reportData.monthlyGrowth}% from last month</div>
               </div>
               
               <div class="metric">
                 <div class="metric-title">Total Orders</div>
                 <div class="metric-value">${reportData.totalOrders}</div>
-                <div class="metric-trend">This month</div>
+                <div class="metric-trend">All time</div>
               </div>
               
               <div class="metric">
@@ -196,7 +503,7 @@ export function SummaryReport() {
                   <tr>
                     <td>${product.name}</td>
                     <td>${product.sales}</td>
-                    <td>$${product.revenue.toLocaleString()}</td>
+                    <td>LKR ${product.revenue.toLocaleString()}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -208,13 +515,13 @@ export function SummaryReport() {
                 <div class="bar-item">
                   <div class="bar-header">
                     <span>${category.category}</span>
-                    <span>$${category.sales.toLocaleString()}</span>
+                    <span>LKR ${category.sales.toLocaleString()}</span>
                   </div>
                   <div class="bar-container">
                     <div class="bar" style="width: ${category.percentage}%;"></div>
                   </div>
                   <div style="font-size: 12px; color: #666;">
-                    ${category.percentage}% of total sales
+                    ${Math.round(category.percentage)}% of total sales
                   </div>
                 </div>
               `).join('')}
@@ -231,11 +538,31 @@ export function SummaryReport() {
       reportWindow.document.write(reportContent);
       reportWindow.document.close();
       
-      // Dismiss the loading toast and show success
       toast.dismiss();
       toast.success('Report exported successfully');
     }, 1500);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">Summary Report</h1>
+            <p className="text-muted-foreground">Comprehensive business overview and analytics</p>
+          </div>
+          <Button variant="outline" disabled>
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            Loading...
+          </Button>
+        </div>
+        <div className="text-center py-12">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading report data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -245,6 +572,10 @@ export function SummaryReport() {
           <p className="text-muted-foreground">Comprehensive business overview and analytics</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={refreshData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
           <Button variant="outline" onClick={exportToPDF}>
             <Download className="h-4 w-4 mr-2" />
             Export Report
@@ -260,8 +591,10 @@ export function SummaryReport() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${reportData.totalSales.toLocaleString()}</div>
-            <p className="text-xs text-green-600">+{reportData.monthlyGrowth}% from last month</p>
+            <div className="text-2xl font-bold">LKR {reportData.totalSales.toLocaleString()}</div>
+            <p className={`text-xs ${reportData.monthlyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {reportData.monthlyGrowth >= 0 ? '+' : ''}{reportData.monthlyGrowth}% from last month
+            </p>
           </CardContent>
         </Card>
         
@@ -272,7 +605,7 @@ export function SummaryReport() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{reportData.totalOrders}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
         
@@ -304,27 +637,33 @@ export function SummaryReport() {
         <Card>
           <CardHeader>
             <CardTitle>Top Selling Products</CardTitle>
-            <CardDescription>Best performing items this month</CardDescription>
+            <CardDescription>Best performing items</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Units Sold</TableHead>
-                  <TableHead>Revenue</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.topSellingProducts.map((product, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>{product.sales}</TableCell>
-                    <TableCell>${product.revenue.toLocaleString()}</TableCell>
+            {reportData.topSellingProducts.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Units Sold</TableHead>
+                    <TableHead>Revenue</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {reportData.topSellingProducts.map((product, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.sales}</TableCell>
+                      <TableCell>LKR {product.revenue.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                No sales data available
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -335,31 +674,75 @@ export function SummaryReport() {
             <CardDescription>Revenue distribution across categories</CardDescription>
           </CardHeader>
           <CardContent>
+            {reportData.salesByCategory.length > 0 ? (
+              <div className="space-y-4">
+                {reportData.salesByCategory.map((category, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{category.category}</span>
+                      <span>LKR {category.sales.toLocaleString()}</span>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-2">
+                      <div 
+                        className="bg-primary h-2 rounded-full"
+                        style={{ width: `${category.percentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {Math.round(category.percentage)}% of total sales
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                No category sales data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Customer Overview</CardTitle>
+            <CardDescription>Customer statistics</CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-4">
-              {reportData.salesByCategory.map((category, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="font-medium">{category.category}</span>
-                    <span>${category.sales.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-2">
-                    <div 
-                      className={`bg-primary h-2 rounded-full ${
-                        category.percentage === 100 ? 'w-full' : 
-                        category.percentage >= 75 ? 'w-3/4' :
-                        category.percentage >= 66 ? 'w-2/3' :
-                        category.percentage >= 50 ? 'w-1/2' :
-                        category.percentage >= 33 ? 'w-1/3' :
-                        category.percentage >= 25 ? 'w-1/4' :
-                        'w-[' + category.percentage + '%]'
-                      }`}
-                    ></div>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {category.percentage}% of total sales
-                  </div>
-                </div>
-              ))}
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Total Customers</span>
+                <span className="text-2xl font-bold">{reportData.totalCustomers}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Active Suppliers</span>
+                <span className="text-2xl font-bold">{reportData.activeSuppliers}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Inventory Health</CardTitle>
+            <CardDescription>Stock level overview</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Products in Stock</span>
+                <span className="text-2xl font-bold text-green-600">
+                  {products.filter(p => p.stock > 0).length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Out of Stock</span>
+                <span className="text-2xl font-bold text-red-600">
+                  {products.filter(p => p.stock === 0).length}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>

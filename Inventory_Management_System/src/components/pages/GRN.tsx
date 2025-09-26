@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -20,6 +20,10 @@ import {
 } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
+// Import your existing Firebase configuration
+import { db } from '../../firebase';
+import { collection, doc, setDoc, getDocs, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+
 interface GRNItem {
   id: string;
   name: string;
@@ -37,58 +41,12 @@ interface GRN {
   items: number;
   notes?: string;
   itemsList?: GRNItem[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export function GRN() {
-  const [grnList, setGrnList] = useState<GRN[]>([
-    {
-      id: 'GRN-001',
-      supplier: 'ABC Electronics Ltd',
-      supplierId: 'SUP-001',
-      date: '2024-01-15',
-      status: 'Received',
-      total: 20499.85,
-      items: 15,
-      notes: 'All items received in good condition',
-      itemsList: [
-        { id: 'ITEM-001', name: 'iPhone 14 Pro', quantity: 5, price: 1299.99 },
-        { id: 'ITEM-002', name: 'MacBook Air', quantity: 3, price: 1199.99 },
-        { id: 'ITEM-003', name: 'AirPods Pro', quantity: 7, price: 249.99 }
-      ]
-    },
-    {
-      id: 'GRN-002',
-      supplier: 'Tech Distributors Inc',
-      supplierId: 'SUP-002',
-      date: '2024-01-14',
-      status: 'Pending',
-      total: 12799.89,
-      items: 11,
-      notes: 'Waiting for delivery confirmation',
-      itemsList: [
-        { id: 'ITEM-004', name: 'Samsung Galaxy S23', quantity: 4, price: 1099.99 },
-        { id: 'ITEM-005', name: 'Dell XPS 15', quantity: 2, price: 1899.99 },
-        { id: 'ITEM-006', name: 'Logitech MX Master', quantity: 5, price: 99.99 }
-      ]
-    },
-    {
-      id: 'GRN-003',
-      supplier: 'Office Supplies Plus',
-      supplierId: 'SUP-003',
-      date: '2024-01-13',
-      status: 'Partial',
-      total: 5149.87,
-      items: 13,
-      notes: 'Some items pending from supplier',
-      itemsList: [
-        { id: 'ITEM-007', name: 'HP LaserJet Printer', quantity: 2, price: 499.99 },
-        { id: 'ITEM-008', name: 'Office Desk Chair', quantity: 5, price: 199.99 },
-        { id: 'ITEM-009', name: 'Filing Cabinet', quantity: 3, price: 149.99 },
-        { id: 'ITEM-010', name: 'Whiteboard', quantity: 3, price: 89.99 }
-      ]
-    },
-  ]);
-
+  const [grnList, setGrnList] = useState<GRN[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -98,7 +56,7 @@ export function GRN() {
     date: '',
     items: 0,
     total: 0,
-    status: 'Pending',
+    status: 'Pending' as 'Pending' | 'Partial' | 'Received',
     notes: ''
   });
   
@@ -107,6 +65,30 @@ export function GRN() {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editData, setEditData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Firebase collection reference
+  const grnCollectionRef = collection(db, 'grns');
+
+  // Fetch GRNs from Firebase
+  useEffect(() => {
+    const q = query(grnCollectionRef, orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const grns: GRN[] = [];
+      snapshot.forEach((doc) => {
+        grns.push({ id: doc.id, ...doc.data() } as GRN);
+      });
+      setGrnList(grns);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching GRNs:', error);
+      toast.error('Error loading GRN data');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const filteredGRNs = grnList.filter(grn => {
     const matchesSearch = 
@@ -117,32 +99,76 @@ export function GRN() {
     return matchesSearch && matchesStatus;
   });
 
-  const addGRN = () => {
+  const generateGRNId = async (): Promise<string> => {
+    try {
+      const querySnapshot = await getDocs(grnCollectionRef);
+      const count = querySnapshot.size + 1;
+      return `GRN-${String(count).padStart(3, '0')}`;
+    } catch (error) {
+      console.error('Error generating GRN ID:', error);
+      // Fallback ID if there's an error
+      return `GRN-${String(grnList.length + 1).padStart(3, '0')}`;
+    }
+  };
+
+  const addGRN = async () => {
     if (!formData.supplier || !formData.supplierId || !formData.date || formData.items <= 0 || formData.total <= 0) {
       toast.error('Please fill all required fields');
       return;
     }
 
-    const newGRN: GRN = {
-      id: `GRN-${String(grnList.length + 1).padStart(3, '0')}`,
-      ...formData,
-    };
+    try {
+      const grnId = await generateGRNId();
+      
+      const newGRN: GRN = {
+        id: grnId,
+        supplier: formData.supplier,
+        supplierId: formData.supplierId,
+        date: formData.date,
+        status: formData.status,
+        items: formData.items,
+        total: formData.total,
+        notes: formData.notes,
+        itemsList: [
+          {
+            id: 'ITEM-001',
+            name: 'Sample Item 1',
+            quantity: Math.floor(formData.items / 2),
+            price: formData.total / formData.items
+          },
+          {
+            id: 'ITEM-002',
+            name: 'Sample Item 2',
+            quantity: formData.items - Math.floor(formData.items / 2),
+            price: formData.total / formData.items
+          }
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-    setGrnList(prev => [newGRN, ...prev]);
-    setShowForm(false);
-    setFormData({ 
-      supplier: '', 
-      supplierId: '', 
-      date: '', 
-      items: 0, 
-      total: 0, 
-      status: 'Pending',
-      notes: '' 
-    });
-    toast.success('GRN added successfully');
+      // Use GRN ID as the document ID (primary key)
+      const grnDocRef = doc(db, 'grns', grnId);
+      await setDoc(grnDocRef, newGRN);
+
+      setShowForm(false);
+      setFormData({ 
+        supplier: '', 
+        supplierId: '', 
+        date: '', 
+        items: 0, 
+        total: 0, 
+        status: 'Pending',
+        notes: '' 
+      });
+      toast.success('GRN added successfully');
+    } catch (error) {
+      console.error('Error adding GRN:', error);
+      toast.error('Error adding GRN');
+    }
   };
 
-  const updateGRN = () => {
+  const updateGRN = async () => {
     if (!editData) return;
     
     if (!editData.supplier || !editData.supplierId || !editData.date) {
@@ -150,20 +176,37 @@ export function GRN() {
       return;
     }
 
-    setGrnList(prev => 
-      prev.map(grn => 
-        grn.id === editData.id ? { ...editData } : grn
-      )
-    );
-    
-    setShowEditDialog(false);
-    setEditData(null);
-    toast.success('GRN updated successfully');
+    try {
+      const grnDocRef = doc(db, 'grns', editData.id);
+      await updateDoc(grnDocRef, {
+        supplier: editData.supplier,
+        supplierId: editData.supplierId,
+        date: editData.date,
+        status: editData.status,
+        items: editData.items,
+        total: editData.total,
+        notes: editData.notes,
+        updatedAt: new Date()
+      });
+      
+      setShowEditDialog(false);
+      setEditData(null);
+      toast.success('GRN updated successfully');
+    } catch (error) {
+      console.error('Error updating GRN:', error);
+      toast.error('Error updating GRN');
+    }
   };
 
-  const deleteGRN = (id: string) => {
-    setGrnList(prev => prev.filter(grn => grn.id !== id));
-    toast.success('GRN deleted successfully');
+  const deleteGRN = async (id: string) => {
+    try {
+      const grnDocRef = doc(db, 'grns', id);
+      await deleteDoc(grnDocRef);
+      toast.success('GRN deleted successfully');
+    } catch (error) {
+      console.error('Error deleting GRN:', error);
+      toast.error('Error deleting GRN');
+    }
   };
 
   const handleEdit = (grn: GRN) => {
@@ -303,6 +346,17 @@ export function GRN() {
     
     toast.success('Print preview opened');
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading GRN data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -495,6 +549,9 @@ export function GRN() {
                       <TableCell className="text-right font-medium">LKR {grn.total.toFixed(2)}</TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-1">
+                          <Button size="sm" variant="outline" onClick={() => handleView(grn)} title="View GRN">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => handleEdit(grn)} title="Edit GRN">
                             <Edit className="h-3.5 w-3.5" />
                           </Button>
@@ -611,6 +668,12 @@ export function GRN() {
                             <span className="text-muted-foreground">Created on:</span>
                             <span>{selectedGRN.date}</span>
                           </div>
+                          {selectedGRN.createdAt && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Database Created:</span>
+                              <span>{selectedGRN.createdAt.toLocaleDateString()}</span>
+                            </div>
+                          )}
                         </div>
                       </TabsContent>
                       <TabsContent value="delivery" className="p-3 border rounded-md mt-2">

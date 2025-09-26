@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,22 +9,37 @@ import { Separator } from '../ui/separator';
 import { CreditCard, Plus, Minus, Trash2, Calculator, Printer, Receipt } from 'lucide-react';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { collection, addDoc, updateDoc, doc, arrayUnion, increment, getDocs, query, where, writeBatch, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase';
 
-const mockProducts = [
-  { id: 1, name: 'iPhone 14 Pro', barcode: '123456789012', price: 1299.99, stock: 25 },
-  { id: 2, name: 'Samsung Galaxy S23', barcode: '123456789013', price: 1099.99, stock: 15 },
-  { id: 3, name: 'MacBook Pro 14"', barcode: '123456789014', price: 2099.99, stock: 8 },
-  { id: 4, name: 'iPad Air', barcode: '123456789015', price: 649.99, stock: 12 },
-  { id: 5, name: 'AirPods Pro', barcode: '123456789016', price: 249.99, stock: 30 },
-  { id: 6, name: 'Apple Watch', barcode: '123456789017', price: 399.99, stock: 20 }
-];
+// Firebase product interface (same as your Products page)
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  supplier: string;
+  costPrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStock: number;
+  status: string;
+  barcode: string;
+  imageUrl: string | null;
+  description?: string;
+  weight?: string;
+  dimensions?: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
 
 interface CartItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
   quantity: number;
   total: number;
+  stock: number; // Add stock to cart item for validation
 }
 
 export function BillPage() {
@@ -37,15 +52,51 @@ export function BillPage() {
   const [discount, setDiscount] = useState(0);
   const [showBillDialog, setShowBillDialog] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const filteredProducts = mockProducts.filter(product =>
+  // Fetch products from Firebase in real-time
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const productsCollectionRef = collection(db, 'products');
+        const q = query(productsCollectionRef, orderBy('name', 'asc'));
+        
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const productsData: Product[] = [];
+          querySnapshot.forEach((doc) => {
+            productsData.push({ id: doc.id, ...doc.data() } as Product);
+          });
+          
+          // Filter only active products
+          const activeProducts = productsData.filter(product => product.status === 'Active');
+          setProducts(activeProducts);
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        toast.error('Error loading products');
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.barcode.includes(searchTerm)
+    product.barcode.includes(searchTerm) ||
+    product.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const addToCart = (product: typeof mockProducts[0]) => {
+  const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.id === product.id);
+    
     if (existingItem) {
       if (existingItem.quantity >= product.stock) {
         toast.error('Insufficient stock');
@@ -53,24 +104,30 @@ export function BillPage() {
       }
       setCart(prev => prev.map(item =>
         item.id === product.id
-          ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price }
+          ? { 
+              ...item, 
+              quantity: item.quantity + 1, 
+              total: (item.quantity + 1) * item.price,
+              stock: product.stock // Update stock reference
+            }
           : item
       ));
     } else {
       const newItem: CartItem = {
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: product.sellingPrice, // Use selling price from Firebase
         quantity: 1,
-        total: product.price
+        total: product.sellingPrice,
+        stock: product.stock
       };
       setCart(prev => [...prev, newItem]);
     }
     toast.success(`${product.name} added to cart`);
   };
 
-  const updateQuantity = (id: number, change: number) => {
-    const product = mockProducts.find(p => p.id === id);
+  const updateQuantity = (id: string, change: number) => {
+    const product = products.find(p => p.id === id);
     if (!product) return;
 
     setCart(prev => prev.map(item => {
@@ -83,13 +140,18 @@ export function BillPage() {
         if (newQuantity === 0) {
           return null as any;
         }
-        return { ...item, quantity: newQuantity, total: newQuantity * item.price };
+        return { 
+          ...item, 
+          quantity: newQuantity, 
+          total: newQuantity * item.price,
+          stock: product.stock // Update stock reference
+        };
       }
       return item;
     }).filter(Boolean));
   };
 
-  const removeFromCart = (id: number) => {
+  const removeFromCart = (id: string) => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
@@ -103,7 +165,55 @@ export function BillPage() {
     return Math.max(0, received - getFinalTotal());
   };
 
-  const handleCheckout = () => {
+  // Function to generate a sequential invoice number
+  const generateInvoiceNumber = async (): Promise<string> => {
+    try {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      
+      // Get the last invoice for this month to continue numbering
+      const invoicesRef = collection(db, 'invoices');
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const q = query(
+        invoicesRef, 
+        where('createdAt', '>=', startOfMonth),
+        where('createdAt', '<=', today)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const invoiceCount = querySnapshot.size + 1;
+      
+      return `INV-${year}${month}-${String(invoiceCount).padStart(4, '0')}`;
+    } catch (error) {
+      console.error('Error generating invoice number:', error);
+      // Fallback to timestamp-based ID
+      return `INV-${Date.now()}`;
+    }
+  };
+
+  // Function to update product stock in Firebase after sale
+  const updateProductStock = async (cartItems: CartItem[]) => {
+    try {
+      const batch = writeBatch(db);
+      
+      for (const item of cartItems) {
+        const productDocRef = doc(db, 'products', item.id);
+        batch.update(productDocRef, {
+          stock: increment(-item.quantity),
+          updatedAt: new Date()
+        });
+      }
+      
+      await batch.commit();
+      console.log('Product stock updated successfully');
+    } catch (error) {
+      console.error('Error updating product stock:', error);
+      throw error;
+    }
+  };
+
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
@@ -117,166 +227,200 @@ export function BillPage() {
       }
     }
 
-    // Generate invoice
-    const invoiceData = {
-      id: `INV-${Date.now()}`,
-      customer: customerName || 'Walk-in Customer',
-      phone: customerPhone,
-      items: cart,
-      subtotal: getSubtotal(),
-      discount: getDiscountAmount(),
-      tax: getTax(),
-      total: getFinalTotal(),
-      paymentMethod,
-      amountReceived: parseFloat(amountReceived) || getFinalTotal(),
-      change: getChange(),
-      date: new Date().toLocaleString()
-    };
+    setIsProcessing(true);
 
-    setLastInvoice(invoiceData);
-    setShowBillDialog(true);
+    try {
+      // Generate invoice number
+      const invoiceNumber = await generateInvoiceNumber();
+      
+      // Generate invoice data
+      const invoiceData = {
+        id: invoiceNumber,
+        invoiceNumber: invoiceNumber,
+        customer: customerName || 'Walk-in Customer',
+        phone: customerPhone || '',
+        items: cart.map(item => ({
+          productId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          total: item.total
+        })),
+        subtotal: getSubtotal(),
+        discount: getDiscountAmount(),
+        discountPercentage: discount,
+        tax: getTax(),
+        taxRate: 0.1, // 10%
+        total: getFinalTotal(),
+        paymentMethod,
+        amountReceived: paymentMethod === 'cash' ? parseFloat(amountReceived) || getFinalTotal() : getFinalTotal(),
+        change: getChange(),
+        status: 'completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-    // Clear the form
-    setCart([]);
-    setCustomerName('');
-    setCustomerPhone('');
-    setAmountReceived('');
-    setDiscount(0);
-    setSearchTerm('');
+      // Save invoice to Firestore
+      const docRef = await addDoc(collection(db, 'invoices'), invoiceData);
+      
+      // Update product stock in Firebase
+      await updateProductStock(cart);
 
-    toast.success('Payment processed successfully!');
-    // console.log('Invoice:', invoiceData); // In real app, save to database
+      // Set last invoice for display
+      setLastInvoice({
+        ...invoiceData,
+        firebaseId: docRef.id,
+        date: new Date().toLocaleString()
+      });
+
+      setShowBillDialog(true);
+
+      // Clear the form
+      setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setAmountReceived('');
+      setDiscount(0);
+      setSearchTerm('');
+
+      toast.success('Payment processed successfully! Invoice saved to database.');
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      toast.error('Failed to process payment. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handlePrintBill = () => {
-		if (!lastInvoice) return;
+    if (!lastInvoice) return;
 
-		// build rows HTML from items
-		const itemsHtml = lastInvoice.items.map((item: any) => `
-			<tr>
-				<td class="item-name">${item.name}</td>
-				<td class="item-qty">${item.quantity}</td>
-				<td class="item-unit">${item.price.toFixed(2)}</td>
-				<td class="item-total">${item.total.toFixed(2)}</td>
-			</tr>
-		`).join('');
+    // build rows HTML from items
+    const itemsHtml = lastInvoice.items.map((item: any) => `
+      <tr>
+        <td class="item-name">${item.name}</td>
+        <td class="item-qty">${item.quantity}</td>
+        <td class="item-unit">${item.price.toFixed(2)}</td>
+        <td class="item-total">${item.total.toFixed(2)}</td>
+      </tr>
+    `).join('');
 
-		const html = `
-		<!doctype html>
-		<html>
-		<head>
-		  <meta charset="utf-8" />
-		  <title>Invoice ${lastInvoice.id}</title>
-		  <style>
-			:root{
-			  --width: 80mm;
-			  --muted:#6b7280;
-			  --accent:#0ea5a3;
-			}
-			@media print {
-			  @page { margin: 0; size: auto; }
-			  body { margin: 0; }
-			}
-			body {
-			  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-			  background: #fff;
-			  padding: 8px;
-			  color: #111827;
-			}
-			.receipt {
-			  width: var(--width);
-			  max-width: 320px;
-			  margin: 0 auto;
-			  padding: 8px 12px;
-			}
-			.header { text-align: center; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
-			.brand { font-size: 18px; font-weight: 700; letter-spacing: 0.6px; color: var(--accent); }
-			.meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
-			table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
-			th, td { padding: 6px 4px; }
-			thead th { text-align: left; font-size: 12px; color: #374151; }
-			tbody tr { border-bottom: 1px dashed #e5e7eb; }
-			.item-name { width: 50%; }
-			.item-qty { width: 12%; text-align: center; }
-			.item-unit, .item-total { width: 19%; text-align: right; }
-			.summary { margin-top: 8px; font-size: 13px; }
-			.summary-row { display:flex; justify-content:space-between; padding:4px 0; }
-			.total { font-weight:700; font-size: 15px; color: #111827; }
-			.small-muted { font-size: 11px; color: var(--muted); }
-			.footer { text-align:center; margin-top:10px; font-size:11px; color:var(--muted); }
-		  </style>
-		</head>
-		<body>
-		  <div class="receipt">
-			<div class="header">
-			  <div class="brand">Inventory Management</div>
-			  <div style="font-size:13px;font-weight:600;margin-top:4px;">INVOICE</div>
-			  <div class="meta">
-				<div>Invoice: <strong>${lastInvoice.id}</strong></div>
-				<div>Date: ${lastInvoice.date}</div>
-			  </div>
-			</div>
+    const html = `
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Invoice ${lastInvoice.id}</title>
+      <style>
+        :root{
+          --width: 80mm;
+          --muted:#6b7280;
+          --accent:#0ea5a3;
+        }
+        @media print {
+          @page { margin: 0; size: auto; }
+          body { margin: 0; }
+        }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+          background: #fff;
+          padding: 8px;
+          color: #111827;
+        }
+        .receipt {
+          width: var(--width);
+          max-width: 320px;
+          margin: 0 auto;
+          padding: 8px 12px;
+        }
+        .header { text-align: center; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+        .brand { font-size: 18px; font-weight: 700; letter-spacing: 0.6px; color: var(--accent); }
+        .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+        th, td { padding: 6px 4px; }
+        thead th { text-align: left; font-size: 12px; color: #374151; }
+        tbody tr { border-bottom: 1px dashed #e5e7eb; }
+        .item-name { width: 50%; }
+        .item-qty { width: 12%; text-align: center; }
+        .item-unit, .item-total { width: 19%; text-align: right; }
+        .summary { margin-top: 8px; font-size: 13px; }
+        .summary-row { display:flex; justify-content:space-between; padding:4px 0; }
+        .total { font-weight:700; font-size: 15px; color: #111827; }
+        .small-muted { font-size: 11px; color: var(--muted); }
+        .footer { text-align:center; margin-top:10px; font-size:11px; color:var(--muted); }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <div class="header">
+          <div class="brand">Inventory Management</div>
+          <div style="font-size:13px;font-weight:600;margin-top:4px;">INVOICE</div>
+          <div class="meta">
+            <div>Invoice: <strong>${lastInvoice.id}</strong></div>
+            <div>Date: ${lastInvoice.date}</div>
+          </div>
+        </div>
 
-			<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;">
-			  <div>
-				<div class="small-muted">Customer</div>
-				<div>${(lastInvoice.customer || 'Walk-in Customer')}</div>
-				<div class="small-muted">${lastInvoice.phone || ''}</div>
-			  </div>
-			  <div style="text-align:right;">
-				<div class="small-muted">Payment</div>
-				<div style="text-transform:capitalize">${lastInvoice.paymentMethod}</div>
-			  </div>
-			</div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;">
+          <div>
+            <div class="small-muted">Customer</div>
+            <div>${(lastInvoice.customer || 'Walk-in Customer')}</div>
+            <div class="small-muted">${lastInvoice.phone || ''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="small-muted">Payment</div>
+            <div style="text-transform:capitalize">${lastInvoice.paymentMethod}</div>
+          </div>
+        </div>
 
-			<table>
-			  <thead>
-				<tr>
-				  <th>Item</th>
-				  <th class="item-qty">Qty</th>
-				  <th class="item-unit">Unit</th>
-				  <th class="item-total">Total</th>
-				</tr>
-			  </thead>
-			  <tbody>
-				${itemsHtml}
-			  </tbody>
-			</table>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="item-qty">Qty</th>
+              <th class="item-unit">Unit</th>
+              <th class="item-total">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
 
-			<div class="summary">
-			  <div class="summary-row"><span class="small-muted">Subtotal</span><span>LKR ${lastInvoice.subtotal.toFixed(2)}</span></div>
-			  <div class="summary-row"><span class="small-muted">Discount</span><span>-LKR ${lastInvoice.discount.toFixed(2)}</span></div>
-			  <div class="summary-row"><span class="small-muted">Tax (10%)</span><span>LKR ${lastInvoice.tax.toFixed(2)}</span></div>
-			  <div class="summary-row total"><span>Total</span><span>LKR ${lastInvoice.total.toFixed(2)}</span></div>
-			  <div class="summary-row small-muted"><span>Received</span><span>LKR ${lastInvoice.amountReceived.toFixed(2)}</span></div>
-			  <div class="summary-row small-muted"><span>Change</span><span>LKR ${lastInvoice.change.toFixed(2)}</span></div>
-			</div>
+        <div class="summary">
+          <div class="summary-row"><span class="small-muted">Subtotal</span><span>LKR ${lastInvoice.subtotal.toFixed(2)}</span></div>
+          <div class="summary-row"><span class="small-muted">Discount</span><span>-LKR ${lastInvoice.discount.toFixed(2)}</span></div>
+          <div class="summary-row"><span class="small-muted">Tax (10%)</span><span>LKR ${lastInvoice.tax.toFixed(2)}</span></div>
+          <div class="summary-row total"><span>Total</span><span>LKR ${lastInvoice.total.toFixed(2)}</span></div>
+          <div class="summary-row small-muted"><span>Received</span><span>LKR ${lastInvoice.amountReceived.toFixed(2)}</span></div>
+          <div class="summary-row small-muted"><span>Change</span><span>LKR ${lastInvoice.change.toFixed(2)}</span></div>
+        </div>
 
-			<div class="footer">
-			  Thank you for your purchase<br/>Powered by Inventory Management System
-			</div>
-		  </div>
-		</body>
-		</html>
-		`;
+        <div class="footer">
+          Thank you for your purchase<br/>Powered by Inventory Management System
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
 
-		const printWindow = window.open('', '_blank', 'width=400,height=800');
-		if (!printWindow) {
-			toast.error('Please allow pop-ups to print');
-			return;
-		}
-		printWindow.document.write(html);
-		printWindow.document.close();
+    const printWindow = window.open('', '_blank', 'width=400,height=800');
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print');
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
 
-		// wait for content to load then print
-		printWindow.onload = () => {
-			printWindow.focus();
-			setTimeout(() => {
-				printWindow.print();
-				printWindow.close();
-			}, 250);
-		};
-	};
+    // wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    };
+  };
 
   return (
     <>
@@ -294,34 +438,56 @@ export function BillPage() {
             <CardContent>
               <div className="space-y-4">
                 <Input
-                  placeholder="Search products by name or scan barcode..."
+                  placeholder="Search products by name, SKU, or scan barcode..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full"
                 />
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                  {filteredProducts.map(product => (
-                    <Card 
-                      key={product.id} 
-                      className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary/20"
-                      onClick={() => addToCart(product)}
-                    >
-                      <CardContent className="p-4">
-                        <h4 className="font-medium mb-2">{product.name}</h4>
-                        <div className="space-y-1 text-sm text-muted-foreground">
-                          <p>Price: LKR {product.price.toFixed(2)}</p>
-                          <p>Stock: {product.stock} units</p>
-                          <p className="text-xs">Barcode: {product.barcode}</p>
-                        </div>
-                        <Button size="sm" className="w-full mt-3">
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add to Cart
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p>Loading products...</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                    {filteredProducts.map(product => (
+                      <Card 
+                        key={product.id} 
+                        className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary/20"
+                        onClick={() => addToCart(product)}
+                      >
+                        <CardContent className="p-4">
+                          <h4 className="font-medium mb-2">{product.name}</h4>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p>Price: LKR {product.sellingPrice.toFixed(2)}</p>
+                            <p className={product.stock <= product.minStock ? 'text-destructive font-medium' : ''}>
+                              Stock: {product.stock} units
+                            </p>
+                            <p className="text-xs">SKU: {product.sku}</p>
+                            {product.barcode && (
+                              <p className="text-xs">Barcode: {product.barcode}</p>
+                            )}
+                          </div>
+                          <Button 
+                            size="sm" 
+                            className="w-full mt-3"
+                            disabled={product.stock === 0}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+                
+                {!loading && filteredProducts.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {products.length === 0 ? 'No products found. Add products in the Products page first.' : 'No products found matching your search.'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -363,13 +529,19 @@ export function BillPage() {
                       <div className="flex-1">
                         <p className="font-medium text-sm">{item.name}</p>
                         <p className="text-xs text-muted-foreground">LKR {item.price.toFixed(2)} each</p>
+                        <p className="text-xs text-muted-foreground">Stock: {item.stock} units</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, -1)}>
                           <Minus className="h-3 w-3" />
                         </Button>
                         <span className="w-8 text-center text-sm">{item.quantity}</span>
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, 1)}>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => updateQuantity(item.id, 1)}
+                          disabled={item.quantity >= item.stock}
+                        >
                           <Plus className="h-3 w-3" />
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => removeFromCart(item.id)}>
@@ -470,10 +642,10 @@ export function BillPage() {
               <Button 
                 className="w-full" 
                 onClick={handleCheckout}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || isProcessing}
               >
                 <Receipt className="h-4 w-4 mr-2" />
-                Process Payment
+                {isProcessing ? 'Processing...' : 'Process Payment'}
               </Button>
             </CardContent>
           </Card>
@@ -521,7 +693,7 @@ export function BillPage() {
                   </thead>
                   <tbody>
                     {lastInvoice.items.map((item: any) => (
-                      <tr key={item.id} className="border-b last:border-b-0">
+                      <tr key={item.productId} className="border-b last:border-b-0">
                         <td className="py-2">{item.name}</td>
                         <td className="py-2 text-center">{item.quantity}</td>
                         <td className="py-2 text-right">{item.price.toFixed(2)}</td>

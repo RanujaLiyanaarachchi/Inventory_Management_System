@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,10 +9,12 @@ import { Checkbox } from '../ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Users, Search, Edit, Trash2, Key, Settings, UserCheck, UserX, Shield } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
+import { doc, getDoc, updateDoc, deleteDoc, collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: string;
@@ -22,6 +24,7 @@ interface User {
   status: 'Active' | 'Inactive';
   lastLogin: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface Role {
@@ -32,7 +35,7 @@ interface Role {
 }
 
 export function UsersPage() {
-  const { allPermissions, getAllRoles, getRolePermissions } = useAuth();
+  const { allPermissions, getAllRoles } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editDialog, setEditDialog] = useState(false);
@@ -42,47 +45,24 @@ export function UsersPage() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const allRoles = getAllRoles();
 
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 1,
-      name: 'John Admin',
-      email: 'admin@example.com',
-      role: 'admin',
-      userType: 'Employee',
-      permissions: allPermissions,
-      profileImage: null,
-      status: 'Active',
-      lastLogin: '2024-01-15 10:30 AM',
-      createdAt: '2024-01-01'
-    },
-    {
-      id: 2,
-      name: 'Sarah Manager',
-      email: 'sarah@example.com', 
-      role: 'manager',
-      userType: 'Employee',
-      permissions: ['dashboard', 'stocks', 'products', 'suppliers', 'invoice'],
-      profileImage: null,
-      status: 'Active',
-      lastLogin: '2024-01-15 09:15 AM',
-      createdAt: '2024-01-02'
-    },
-    {
-      id: 3,
-      name: 'Mike Staff',
-      email: 'mike@example.com',
-      role: 'staff', 
-      userType: 'Employee',
-      permissions: ['dashboard', 'stocks', 'bill'],
-      profileImage: null,
-      status: 'Inactive',
-      lastLogin: '2024-01-14 04:45 PM',
-      createdAt: '2024-01-03'
-    }
-  ]);
+  // Fetch users from Firebase in real-time
+  useEffect(() => {
+    const usersCollection = collection(db, 'users');
+    const unsubscribe = onSnapshot(usersCollection, (snapshot) => {
+      const usersList: User[] = [];
+      snapshot.forEach((doc) => {
+        usersList.push({ id: doc.id, ...doc.data() } as User);
+      });
+      setUsers(usersList);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -113,45 +93,113 @@ export function UsersPage() {
     setRoleDetailsDialog(true);
   };
 
-  const saveUserEdit = () => {
+  const saveUserEdit = async () => {
     if (!selectedUser) return;
-    setUsers(prev => prev.map(user => 
-      user.id === selectedUser.id ? selectedUser : user
-    ));
-    setEditDialog(false);
-    toast.success('User updated successfully');
+    
+    try {
+      setLoading(true);
+      const userDocRef = doc(db, 'users', selectedUser.id);
+      await updateDoc(userDocRef, {
+        name: selectedUser.name,
+        email: selectedUser.email,
+        role: selectedUser.role,
+        userType: selectedUser.userType,
+        updatedAt: new Date().toISOString()
+      });
+      
+      setEditDialog(false);
+      toast.success('User updated successfully');
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error('Failed to update user');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const savePasswordReset = () => {
-    if (!newPassword) {
+  const savePasswordReset = async () => {
+    if (!newPassword || !selectedUser) {
       toast.error('Please enter a new password');
       return;
     }
-    setResetPasswordDialog(false);
-    toast.success('Password reset successfully');
+
+    try {
+      setLoading(true);
+      const userDocRef = doc(db, 'users', selectedUser.id);
+      await updateDoc(userDocRef, {
+        password: newPassword, // Note: Hash this password in production
+        updatedAt: new Date().toISOString()
+      });
+      
+      setResetPasswordDialog(false);
+      setNewPassword('');
+      toast.success('Password reset successfully');
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast.error('Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const savePermissions = () => {
+  const savePermissions = async () => {
     if (!selectedUser) return;
-    setUsers(prev => prev.map(user => 
-      user.id === selectedUser.id ? {...user, permissions: editPermissions} : user
-    ));
-    setPermissionsDialog(false);
-    toast.success('Permissions updated successfully');
+
+    try {
+      setLoading(true);
+      const userDocRef = doc(db, 'users', selectedUser.id);
+      await updateDoc(userDocRef, {
+        permissions: editPermissions,
+        updatedAt: new Date().toISOString()
+      });
+      
+      setPermissionsDialog(false);
+      toast.success('Permissions updated successfully');
+    } catch (error) {
+      console.error('Error updating permissions:', error);
+      toast.error('Failed to update permissions');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const toggleUserStatus = (userId: number) => {
-    setUsers(prev => prev.map(user => 
-      user.id === userId 
-        ? {...user, status: user.status === 'Active' ? 'Inactive' : 'Active'}
-        : user
-    ));
-    toast.success('User status updated');
+  const toggleUserStatus = async (userId: string) => {
+    try {
+      setLoading(true);
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const currentStatus = userDoc.data().status;
+        const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+        
+        await updateDoc(userDocRef, {
+          status: newStatus,
+          updatedAt: new Date().toISOString()
+        });
+        
+        toast.success(`User ${newStatus.toLowerCase()} successfully`);
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      toast.error('Failed to update user status');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const deleteUser = (userId: number) => {
-    setUsers(prev => prev.filter(user => user.id !== userId));
-    toast.success('User deleted successfully');
+  const deleteUser = async (userId: string) => {
+    try {
+      setLoading(true);
+      const userDocRef = doc(db, 'users', userId);
+      await deleteDoc(userDocRef);
+      toast.success('User deleted successfully');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const togglePermission = (permission: string) => {
@@ -277,13 +325,31 @@ export function UsersPage() {
                   </div>
 
                   <div className="flex gap-1 flex-wrap">
-                    <Button size="sm" variant="outline" onClick={() => handleEditUser(user)} title="Edit User">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleEditUser(user)} 
+                      title="Edit User"
+                      disabled={loading}
+                    >
                       <Edit className="h-3 w-3" />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleResetPassword(user)} title="Reset Password">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleResetPassword(user)} 
+                      title="Reset Password"
+                      disabled={loading}
+                    >
                       <Key className="h-3 w-3" />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleEditPermissions(user)} title="Edit Permissions">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleEditPermissions(user)} 
+                      title="Edit Permissions"
+                      disabled={loading}
+                    >
                       <Settings className="h-3 w-3" />
                     </Button>
                     <Button 
@@ -291,6 +357,7 @@ export function UsersPage() {
                       variant="outline" 
                       onClick={() => toggleUserStatus(user.id)}
                       title={user.status === 'Active' ? 'Deactivate' : 'Activate'}
+                      disabled={loading}
                     >
                       {user.status === 'Active' ? <UserX className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />}
                     </Button>
@@ -299,6 +366,7 @@ export function UsersPage() {
                       variant="outline" 
                       onClick={() => deleteUser(user.id)}
                       title="Delete User"
+                      disabled={loading}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -316,76 +384,80 @@ export function UsersPage() {
         </CardContent>
       </Card>
 
-      {/* Edit User Dialog */}
-      <Dialog open={editDialog} onOpenChange={setEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit User Details</DialogTitle>
-            <DialogDescription>Update user information and role</DialogDescription>
-          </DialogHeader>
-          {selectedUser && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={selectedUser.name}
-                  onChange={(e) => setSelectedUser(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  value={selectedUser.email}
-                  onChange={(e) => setSelectedUser(prev => prev ? ({ ...prev, email: e.target.value }) : null)}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Select 
-                    value={selectedUser.role} 
-                    onValueChange={(value) => setSelectedUser(prev => prev ? ({ ...prev, role: value }) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allRoles.map(role => (
-                        <SelectItem key={role.name} value={role.name}>
-                          {role.displayName}
-                          {role.isCustom && <Badge variant="outline" className="ml-2">Custom</Badge>}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>User Type</Label>
-                  <Select 
-                    value={selectedUser.userType} 
-                    onValueChange={(value) => setSelectedUser(prev => prev ? ({ ...prev, userType: value }) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Employee">Employee</SelectItem>
-                      <SelectItem value="Contractor">Contractor</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Supervisor">Supervisor</SelectItem>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog(false)}>Cancel</Button>
-            <Button onClick={saveUserEdit}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+  {/* Edit User Dialog */}
+<Dialog open={editDialog} onOpenChange={setEditDialog}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Edit User Details</DialogTitle>
+      <DialogDescription>Update user information and role</DialogDescription>
+    </DialogHeader>
+    {selectedUser && (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Name</Label>
+          <Input
+            value={selectedUser.name}
+            onChange={(e) => setSelectedUser(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input
+            value={selectedUser.email}
+            onChange={(e) => setSelectedUser(prev => prev ? ({ ...prev, email: e.target.value }) : null)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select 
+              value={selectedUser.role} 
+              onValueChange={(value: string) => setSelectedUser(prev => prev ? ({ ...prev, role: value }) : null)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allRoles.map(role => (
+                  <SelectItem key={role.name} value={role.name}>
+                    {role.displayName}
+                    {role.isCustom && <Badge variant="outline" className="ml-2">Custom</Badge>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>User Type</Label>
+            <Select 
+              value={selectedUser.userType} 
+              onValueChange={(value: string) => setSelectedUser(prev => prev ? ({ ...prev, userType: value }) : null)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Employee">Employee</SelectItem>
+                <SelectItem value="Contractor">Contractor</SelectItem>
+                <SelectItem value="Manager">Manager</SelectItem>
+                <SelectItem value="Supervisor">Supervisor</SelectItem>
+                <SelectItem value="Admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+    )}
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setEditDialog(false)} disabled={loading}>
+        Cancel
+      </Button>
+      <Button onClick={saveUserEdit} disabled={loading}>
+        {loading ? 'Saving...' : 'Save Changes'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 
       {/* Reset Password Dialog */}
       <Dialog open={resetPasswordDialog} onOpenChange={setResetPasswordDialog}>
@@ -408,8 +480,12 @@ export function UsersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetPasswordDialog(false)}>Cancel</Button>
-            <Button onClick={savePasswordReset}>Reset Password</Button>
+            <Button variant="outline" onClick={() => setResetPasswordDialog(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={savePasswordReset} disabled={loading}>
+              {loading ? 'Resetting...' : 'Reset Password'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -469,8 +545,12 @@ export function UsersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPermissionsDialog(false)}>Cancel</Button>
-            <Button onClick={savePermissions}>Save Permissions</Button>
+            <Button variant="outline" onClick={() => setPermissionsDialog(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={savePermissions} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Permissions'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

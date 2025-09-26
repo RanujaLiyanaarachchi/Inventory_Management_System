@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -14,53 +14,70 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
-const mockProducts = [
-  {
-    id: 'PRD001',
-    name: 'iPhone 14 Pro',
-    sku: 'IPH14P-128GB',
-    category: 'Electronics',
-    supplier: 'ABC Electronics Ltd',
-    costPrice: 999,
-    sellingPrice: 1299,
-    stock: 25,
-    minStock: 10,
-    status: 'Active',
-    barcode: '123456789012',
-    imageUrl: null
-  },
-  {
-    id: 'PRD002',
-    name: 'Samsung Galaxy S23',
-    sku: 'SGS23-256GB',
-    category: 'Electronics',
-    supplier: 'Tech Distributors Inc',
-    costPrice: 799,
-    sellingPrice: 1099,
-    stock: 15,
-    minStock: 5,
-    status: 'Active',
-    barcode: '123456789013',
-    imageUrl: null
-  },
-  {
-    id: 'PRD003',
-    name: 'MacBook Pro 14"',
-    sku: 'MBP14-512GB',
-    category: 'Electronics',
-    supplier: 'ABC Electronics Ltd',
-    costPrice: 1799,
-    sellingPrice: 2099,
-    stock: 8,
-    minStock: 3,
-    status: 'Active',
-    barcode: '123456789014',
-    imageUrl: null
-  }
-];
+// Firebase imports
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+  setDoc 
+} from 'firebase/firestore';
+import { db } from '../../firebase';
 
-const categories = ['Electronics', 'Clothing', 'Food & Beverages', 'Books', 'Home & Garden'];
-const suppliers = ['ABC Electronics Ltd', 'Global Fashion Co', 'Tech Distributors Inc', 'Food Suppliers LLC'];
+// Firebase product interface
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  supplier: string;
+  costPrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStock: number;
+  status: string;
+  barcode: string;
+  imageUrl: string | null;
+  description?: string;
+  weight?: string;
+  dimensions?: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+// Category interface
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  productCount: number;
+  status: 'Active' | 'Inactive';
+  createdDate: string;
+}
+
+// Supplier interface
+interface Supplier {
+  supplierId: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  category: string;
+  status: 'Active' | 'Inactive';
+  contactPerson: string;
+  paymentTerms: string;
+  creditLimit: number;
+  notes: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export function Products() {
   const [formData, setFormData] = useState({
@@ -78,25 +95,10 @@ export function Products() {
     dimensions: '',
     imageUrl: null as string | null
   });
-  interface Product {
-    id: string;
-    name: string;
-    sku: string;
-    category: string;
-    supplier: string;
-    costPrice: number;
-    sellingPrice: number;
-    stock: number;
-    minStock: number;
-    status: string;
-    barcode: string;
-    imageUrl: string | null;
-    description?: string;
-    weight?: string;
-    dimensions?: string;
-  }
   
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -104,7 +106,109 @@ export function Products() {
   const [selectedViewProduct, setSelectedViewProduct] = useState<Product | null>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Firebase collection references
+  const productsCollectionRef = collection(db, 'products');
+  const categoriesCollectionRef = collection(db, 'categories');
+  const suppliersCollectionRef = collection(db, 'suppliers');
+
+  // Fetch products from Firebase
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const q = query(productsCollectionRef, orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const productsData: Product[] = [];
+          querySnapshot.forEach((doc) => {
+            productsData.push({ id: doc.id, ...doc.data() } as Product);
+          });
+          setProducts(productsData);
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        toast.error('Error loading products');
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  // Fetch categories from Firebase in real-time
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const q = query(categoriesCollectionRef, orderBy('name', 'asc'));
+        const unsubscribe = onSnapshot(q, 
+          (querySnapshot) => {
+            const categoriesData: Category[] = [];
+            querySnapshot.forEach((doc) => {
+              categoriesData.push({ id: doc.id, ...doc.data() } as Category);
+            });
+            // Filter only active categories
+            const activeCategories = categoriesData.filter(cat => cat.status === 'Active');
+            setCategories(activeCategories);
+            setCategoriesLoading(false);
+          },
+          (error) => {
+            console.error('Error fetching categories:', error);
+            toast.error('Error fetching categories');
+            setCategoriesLoading(false);
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Fetch suppliers from Firebase in real-time
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        setSuppliersLoading(true);
+        const q = query(suppliersCollectionRef, orderBy('name', 'asc'));
+        const unsubscribe = onSnapshot(q, 
+          (querySnapshot) => {
+            const suppliersData: Supplier[] = [];
+            querySnapshot.forEach((doc) => {
+              suppliersData.push({ ...doc.data() } as Supplier);
+            });
+            // Filter only active suppliers
+            const activeSuppliers = suppliersData.filter(supplier => supplier.status === 'Active');
+            setSuppliers(activeSuppliers);
+            setSuppliersLoading(false);
+          },
+          (error) => {
+            console.error('Error fetching suppliers:', error);
+            toast.error('Error fetching suppliers');
+            setSuppliersLoading(false);
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching suppliers:', error);
+        setSuppliersLoading(false);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -147,8 +251,6 @@ export function Products() {
   };
 
   const simulateBarcodeScanner = () => {
-    // In a real application, this would connect to a barcode scanner API
-    // For demo purposes, we'll generate a random barcode
     setShowBarcodeScanner(true);
     
     setTimeout(() => {
@@ -159,7 +261,7 @@ export function Products() {
     }, 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.sku || !formData.category) {
       toast.error('Please fill in all required fields');
@@ -167,51 +269,63 @@ export function Products() {
     }
 
     if (!formData.id) {
-      generateProductId();
+      toast.error('Please generate a Product ID first');
+      return;
     }
 
-    if (editMode && editId) {
-      // Update existing product
-      setProducts(prev => prev.map(product => 
-        product.id === editId ? {
-          ...formData,
-          costPrice: parseFloat(formData.costPrice as string) || 0,
-          sellingPrice: parseFloat(formData.sellingPrice as string) || 0,
-          minStock: parseInt(formData.minStock as string) || 0,
-          stock: product.stock, // Preserve existing stock
-          status: product.status // Preserve existing status
-        } : product
-      ));
-      toast.success('Product updated successfully');
-      setEditMode(false);
-      setEditId(null);
-    } else {
-      // Add new product
-      const newProduct = {
-        ...formData,
-        id: formData.id || `PRD${Date.now().toString().slice(-6)}`,
+    try {
+      const productData = {
+        name: formData.name,
+        sku: formData.sku,
+        description: formData.description,
+        category: formData.category,
+        supplier: formData.supplier,
         costPrice: parseFloat(formData.costPrice as string) || 0,
         sellingPrice: parseFloat(formData.sellingPrice as string) || 0,
         stock: 0,
         minStock: parseInt(formData.minStock as string) || 0,
-        status: 'Active'
+        barcode: formData.barcode,
+        weight: formData.weight,
+        dimensions: formData.dimensions,
+        imageUrl: formData.imageUrl,
+        status: 'Active',
+        createdAt: editMode ? undefined : serverTimestamp(), // Only set on create
+        updatedAt: serverTimestamp()
       };
 
-      setProducts(prev => [...prev, newProduct]);
-      toast.success('Product added successfully');
-    }
+      if (editMode && editId) {
+        // Update existing product in Firebase using product ID as document ID
+        const productDocRef = doc(db, 'products', editId);
+        await updateDoc(productDocRef, productData);
+        toast.success('Product updated successfully');
+        setEditMode(false);
+        setEditId(null);
+      } else {
+        // Add new product to Firebase using product ID as document ID
+        const productDocRef = doc(db, 'products', formData.id);
+        await setDoc(productDocRef, productData);
+        toast.success('Product added successfully');
+      }
 
-    // Reset form
-    setFormData({
-      id: '', name: '', sku: '', description: '', category: '', supplier: '',
-      costPrice: '', sellingPrice: '', minStock: '', barcode: '', weight: '', dimensions: '',
-      imageUrl: null
-    });
+      // Reset form
+      setFormData({
+        id: '', name: '', sku: '', description: '', category: '', supplier: '',
+        costPrice: '', sellingPrice: '', minStock: '', barcode: '', weight: '', dimensions: '',
+        imageUrl: null
+      });
+    } catch (error) {
+      console.error('Error saving product:', error);
+      if ((error as any).code === 'already-exists') {
+        toast.error('Product ID already exists. Please use a different ID.');
+      } else {
+        toast.error('Error saving product');
+      }
+    }
   };
 
-  const handleEditProduct = (product: any) => {
+  const handleEditProduct = (product: Product) => {
     setFormData({
-      id: product.id,
+      id: product.id, // This is the Firebase document ID (primary key)
       name: product.name,
       sku: product.sku,
       description: product.description || '',
@@ -227,19 +341,29 @@ export function Products() {
     });
     
     setEditMode(true);
-    setEditId(product.id);
+    setEditId(product.id); // Set the product ID as the document ID for editing
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const deleteProduct = (productId: string) => {
-    setProducts(prev => prev.filter(p => p.id !== productId));
-    toast.success('Product deleted successfully');
+  const deleteProduct = async (productId: string) => {
+    try {
+      const productDocRef = doc(db, 'products', productId);
+      await deleteDoc(productDocRef);
+      toast.success('Product deleted successfully');
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast.error('Error deleting product');
+    }
   };
 
-  // Add this function to handle viewing product details
   const handleViewProduct = (product: Product) => {
     setSelectedViewProduct(product);
     setShowDetails(true);
+  };
+
+  // Check if product ID already exists
+  const checkProductIdExists = (id: string) => {
+    return products.some(product => product.id === id);
   };
 
   return (
@@ -451,13 +575,14 @@ export function Products() {
                 {/* Product ID & SKU */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="id">Product ID</Label>
+                    <Label htmlFor="id">Product ID *</Label>
                     <div className="flex gap-2">
                       <Input
                         id="id"
                         value={formData.id}
                         onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
-                        placeholder="Product ID"
+                        placeholder="PRD001"
+                        required
                         disabled={editMode}
                       />
                       {!editMode && (
@@ -466,6 +591,12 @@ export function Products() {
                         </Button>
                       )}
                     </div>
+                    {!editMode && formData.id && checkProductIdExists(formData.id) && (
+                      <p className="text-xs text-destructive">Product ID already exists!</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {editMode ? 'Product ID cannot be changed' : 'This will be the primary key in Firebase'}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sku">SKU *</Label>
@@ -564,32 +695,56 @@ export function Products() {
                     <Select 
                       value={formData.category} 
                       onValueChange={(value: string) => setFormData(prev => ({ ...prev, category: value }))}
+                      disabled={categoriesLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
+                        <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select category"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category} value={category}>{category}</SelectItem>
-                        ))}
+                        {categoriesLoading ? (
+                          <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                        ) : categories.length === 0 ? (
+                          <SelectItem value="no-categories" disabled>No categories available</SelectItem>
+                        ) : (
+                          categories.map((category) => (
+                            <SelectItem key={category.id} value={category.name}>
+                              {category.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    {categoriesLoading && (
+                      <p className="text-xs text-muted-foreground">Loading categories...</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="supplier">Supplier</Label>
                     <Select 
                       value={formData.supplier} 
                       onValueChange={(value: string) => setFormData(prev => ({ ...prev, supplier: value }))}
+                      disabled={suppliersLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select supplier" />
+                        <SelectValue placeholder={suppliersLoading ? "Loading suppliers..." : "Select supplier"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {suppliers.map((supplier) => (
-                          <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
-                        ))}
+                        {suppliersLoading ? (
+                          <SelectItem value="loading" disabled>Loading suppliers...</SelectItem>
+                        ) : suppliers.length === 0 ? (
+                          <SelectItem value="no-suppliers" disabled>No suppliers available</SelectItem>
+                        ) : (
+                          suppliers.map((supplier) => (
+                            <SelectItem key={supplier.supplierId} value={supplier.name}>
+                              {supplier.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    {suppliersLoading && (
+                      <p className="text-xs text-muted-foreground">Loading suppliers...</p>
+                    )}
                   </div>
                 </div>
 
@@ -686,7 +841,11 @@ export function Products() {
                 </div>
 
                 {/* Submit Button */}
-                <Button type="submit" className="w-full">
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={loading || (!editMode && formData.id && checkProductIdExists(formData.id)) || categories.length === 0}
+                >
                   {editMode ? (
                     <>
                       <Edit className="h-4 w-4 mr-2" />
@@ -740,9 +899,14 @@ export function Products() {
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-[calc(100vh-20rem)] overflow-y-auto px-6">
-                {filteredProducts.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p>Loading products...</p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    No products found matching your search.
+                    {products.length === 0 ? 'No products found. Add your first product!' : 'No products found matching your search.'}
                   </div>
                 ) : (
                   <div className="space-y-4 pb-4">
@@ -777,7 +941,6 @@ export function Products() {
                             </div>
                           </div>
                           <div className="flex gap-2 flex-shrink-0">
-                            {/* Add the View button */}
                             <Button size="sm" variant="outline" onClick={() => handleViewProduct(product)}>
                               <Eye className="h-3 w-3" />
                             </Button>

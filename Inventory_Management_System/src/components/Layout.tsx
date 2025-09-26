@@ -15,7 +15,7 @@ interface LayoutProps {
 
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home, permission: 'dashboard' },
-  { id: 'bill', label: 'Billing/POS', icon: CreditCard, permission: 'invoice' },
+  { id: 'bill', label: 'Billing/POS', icon: CreditCard, permission: 'bill' },
   { id: 'add-users', label: 'Add Users', icon: Users, permission: 'add-users' },
   { id: 'users', label: 'Users', icon: Users, permission: 'users' },
   { id: 'suppliers', label: 'Supplier', icon: Truck, permission: 'suppliers' },
@@ -35,6 +35,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Filter menu items based on user's permissions
   const filteredMenuItems = menuItems.filter(item => 
     user?.permissions.includes(item.permission)
   );

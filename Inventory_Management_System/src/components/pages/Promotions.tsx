@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -20,64 +20,141 @@ import {
   DialogFooter,
   DialogClose
 } from "../ui/dialog";
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc,
+  onSnapshot,
+  query,
+  orderBy 
+} from 'firebase/firestore';
+import { db } from '../../firebase';
+
+// Interface definitions
+interface Promotion {
+  id: string;
+  name: string;
+  discount: number;
+  type: "Percentage" | "Fixed Amount";
+  status: "Active" | "Upcoming" | "Expired";
+  startDate: string;
+  endDate: string;
+  description: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface FormData {
+  name: string;
+  discount: string;
+  type: "Percentage" | "Fixed Amount";
+  startDate: string;
+  endDate: string;
+  description: string;
+}
 
 export function Promotions() {
-  const [promotions, setPromotions] = useState([
-    { id: 1, name: 'Summer Sale', discount: 20, type: 'Percentage', status: 'Active', startDate: '2024-06-01', endDate: '2024-08-31', description: 'Summer season clearance sale' },
-    { id: 2, name: 'Electronics Clearance', discount: 15, type: 'Percentage', status: 'Active', startDate: '2024-01-15', endDate: '2024-02-15', description: 'Clear old electronic inventory' },
-    { id: 3, name: 'Holiday Special', discount: 50, type: 'Fixed Amount', status: 'Expired', startDate: '2023-12-01', endDate: '2023-12-31', description: 'Holiday season special discount' },
-    { id: 4, name: 'New Year Offer', discount: 25, type: 'Percentage', status: 'Upcoming', startDate: '2024-12-30', endDate: '2024-01-05', description: 'New year celebration offer' }
-  ]);
-  
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '', discount: '', type: 'Percentage', startDate: '', endDate: '', description: ''
   });
-  const [editData, setEditData] = useState<any>(null);
+  const [editData, setEditData] = useState<Promotion | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   type DiscountType = "Percentage" | "Fixed Amount";
   type PromotionStatus = "Active" | "Upcoming" | "Expired";
 
+  // Firebase collection reference
+  const promotionsCollectionRef = collection(db, 'promotions');
+
+  // Fetch promotions from Firebase with real-time updates
+  useEffect(() => {
+    setLoading(true);
+    
+    // Create a query with ordering
+    const q = query(promotionsCollectionRef, orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const promotionsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Promotion[];
+      setPromotions(promotionsData);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching promotions: ', error);
+      toast.error('Error loading promotions');
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
+
   const filteredPromotions = promotions.filter(promo =>
-    promo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    promo.description.toLowerCase().includes(searchTerm.toLowerCase())
+    promo.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    promo.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const addPromotion = () => {
+  const addPromotion = async () => {
     if (!formData.name || !formData.discount || !formData.startDate || !formData.endDate) {
       toast.error('Please fill all required fields');
       return;
     }
 
-    const newPromotion = {
-      id: promotions.length + 1,
-      ...formData,
-      discount: parseFloat(formData.discount),
-      status: new Date(formData.startDate) > new Date() ? 'Upcoming' : 'Active'
-    };
+    try {
+      // Determine status based on start date
+      const status = new Date(formData.startDate) > new Date() ? 'Upcoming' : 'Active';
+      
+      // Add document to Firestore - Firebase will automatically generate the ID
+      await addDoc(promotionsCollectionRef, {
+        name: formData.name,
+        discount: parseFloat(formData.discount),
+        type: formData.type,
+        status: status,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        description: formData.description,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
 
-    setPromotions(prev => [...prev, newPromotion]);
-    setFormData({ name: '', discount: '', type: 'Percentage', startDate: '', endDate: '', description: '' });
-    setShowForm(false);
-    toast.success('Promotion added successfully');
+      // Reset form
+      setFormData({ name: '', discount: '', type: 'Percentage', startDate: '', endDate: '', description: '' });
+      setShowForm(false);
+      toast.success('Promotion added successfully');
+    } catch (error) {
+      console.error('Error adding promotion: ', error);
+      toast.error('Error adding promotion');
+    }
   };
 
-  const deletePromotion = (id: number) => {
-    setPromotions(prev => prev.filter(p => p.id !== id));
-    toast.success('Promotion deleted successfully');
+  const deletePromotion = async (id: string) => {
+    try {
+      // Use the Firebase document ID to delete
+      const promotionDoc = doc(db, 'promotions', id);
+      await deleteDoc(promotionDoc);
+      toast.success('Promotion deleted successfully');
+    } catch (error) {
+      console.error('Error deleting promotion: ', error);
+      toast.error('Error deleting promotion');
+    }
   };
 
-  const handleEdit = (promo: any) => {
+  const handleEdit = (promo: Promotion) => {
     setEditData({
       ...promo,
-      discount: promo.discount.toString()
+      discount: promo.discount // Keep as number for consistency
     });
     setShowEditDialog(true);
   };
 
-  const updatePromotion = () => {
+  const updatePromotion = async () => {
     if (!editData) return;
     
     if (!editData.name || !editData.discount || !editData.startDate || !editData.endDate) {
@@ -85,20 +162,27 @@ export function Promotions() {
       return;
     }
 
-    const updatedPromotion = {
-      ...editData,
-      discount: parseFloat(editData.discount)
-    };
-
-    setPromotions(prev => 
-      prev.map(promo => 
-        promo.id === editData.id ? updatedPromotion : promo
-      )
-    );
-    
-    setShowEditDialog(false);
-    setEditData(null);
-    toast.success('Promotion updated successfully');
+    try {
+      // Use the Firebase document ID to update
+      const promotionDoc = doc(db, 'promotions', editData.id);
+      await updateDoc(promotionDoc, {
+        name: editData.name,
+        discount: editData.discount,
+        type: editData.type,
+        status: editData.status,
+        startDate: editData.startDate,
+        endDate: editData.endDate,
+        description: editData.description,
+        updatedAt: new Date()
+      });
+      
+      setShowEditDialog(false);
+      setEditData(null);
+      toast.success('Promotion updated successfully');
+    } catch (error) {
+      console.error('Error updating promotion: ', error);
+      toast.error('Error updating promotion');
+    }
   };
 
   return (
@@ -215,53 +299,61 @@ export function Promotions() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Promotion Name</TableHead>
-                <TableHead>Discount</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>End Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPromotions.map(promo => (
-                <TableRow key={promo.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{promo.name}</p>
-                      <p className="text-sm text-muted-foreground">{promo.description}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{promo.discount}{promo.type === 'Percentage' ? '%' : ' LKR'}</TableCell>
-                  <TableCell>{promo.type}</TableCell>
-                  <TableCell>{promo.startDate}</TableCell>
-                  <TableCell>{promo.endDate}</TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      promo.status === 'Active' ? 'default' : 
-                      promo.status === 'Upcoming' ? 'secondary' : 'outline'
-                    }>
-                      {promo.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleEdit(promo)}>
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => deletePromotion(promo.id)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <div className="text-center py-4">Loading promotions...</div>
+          ) : filteredPromotions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {promotions.length === 0 ? 'No promotions found. Add your first promotion!' : 'No promotions match your search.'}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Promotion Name</TableHead>
+                  <TableHead>Discount</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead>End Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredPromotions.map(promo => (
+                  <TableRow key={promo.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{promo.name}</p>
+                        <p className="text-sm text-muted-foreground">{promo.description}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{promo.discount}{promo.type === 'Percentage' ? '%' : ' LKR'}</TableCell>
+                    <TableCell>{promo.type}</TableCell>
+                    <TableCell>{promo.startDate}</TableCell>
+                    <TableCell>{promo.endDate}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        promo.status === 'Active' ? 'default' : 
+                        promo.status === 'Upcoming' ? 'secondary' : 'outline'
+                      }>
+                        {promo.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(promo)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => deletePromotion(promo.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -295,7 +387,7 @@ export function Promotions() {
                     <Input
                       type="number"
                       value={editData.discount}
-                      onChange={(e) => setEditData({ ...editData, discount: e.target.value })}
+                      onChange={(e) => setEditData({ ...editData, discount: parseFloat(e.target.value) || 0 })}
                       placeholder="Enter discount value"
                     />
                     <Select 

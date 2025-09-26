@@ -3,15 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Package, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Package } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert, AlertDescription } from '../ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading } = useAuth();
@@ -20,14 +20,15 @@ export function LoginPage() {
     e.preventDefault();
     setError('');
     
-    if (!email || !password || !role) {
+    if (!email || !password) {
       setError('Please fill in all fields');
       return;
     }
 
-    const success = await login(email, password, role);
+    const success = await login(email, password);
     if (!success) {
-      setError('Invalid credentials. Please try again.');
+      // Error message is already handled in the login function
+      return;
     }
   };
 
@@ -53,21 +54,6 @@ export function LoginPage() {
               </Alert>
             )}
             
-            {/* Role / Position asked first */}
-            <div className="space-y-2">
-              <Label htmlFor="role">Role / Position</Label>
-              <Select value={role} onValueChange={setRole} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Administrator</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

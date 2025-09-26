@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,45 +9,49 @@ import { Badge } from '../ui/badge';
 import { Truck, Plus, Edit, Trash2, Phone, Mail, MapPin, Search } from 'lucide-react';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { 
+  collection, 
+  doc, 
+  deleteDoc, 
+  onSnapshot,
+  query,
+  orderBy,
+  setDoc,
+  getDoc,
+  updateDoc,
+  getDocs  // Added getDocs import
+} from 'firebase/firestore';
+import { db } from '../../firebase';
 
-const mockSuppliers = [
-  {
-    id: 1,
-    supplierId: 'SUP001',
-    name: 'ABC Electronics Ltd',
-    email: 'contact@abc-electronics.com',
-    phone: '+1 234 567 8900',
-    address: '123 Tech Street, Silicon Valley, CA 94105',
-    category: 'Electronics',
-    status: 'Active',
-    paymentTerms: 'Net 30',
-    creditLimit: 50000
-  },
-  {
-    id: 2,
-    supplierId: 'SUP002',
-    name: 'Global Fashion Co',
-    email: 'orders@globalfashion.com',
-    phone: '+1 234 567 8901',
-    address: '456 Fashion Ave, New York, NY 10001',
-    category: 'Clothing',
-    status: 'Active',
-    paymentTerms: 'Net 15',
-    creditLimit: 25000
-  },
-  {
-    id: 3,
-    supplierId: 'SUP003',
-    name: 'Tech Distributors Inc',
-    email: 'sales@techdist.com',
-    phone: '+1 234 567 8902',
-    address: '789 Business Blvd, Austin, TX 78701',
-    category: 'Electronics',
-    status: 'Inactive',
-    paymentTerms: 'Cash on Delivery',
-    creditLimit: 75000
-  }
-];
+// Firebase collection names
+const SUPPLIERS_COLLECTION = 'suppliers';
+const CATEGORIES_COLLECTION = 'categories';
+
+// Types
+interface Supplier {
+  supplierId: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  category: string;
+  status: 'Active' | 'Inactive';
+  contactPerson: string;
+  paymentTerms: string;
+  creditLimit: number;
+  notes: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  productCount: number;
+  status: 'Active' | 'Inactive';
+  createdDate: string;
+}
 
 export function Suppliers() {
   const [formData, setFormData] = useState({
@@ -62,11 +66,74 @@ export function Suppliers() {
     creditLimit: '',
     notes: ''
   });
-  const [suppliers, setSuppliers] = useState(mockSuppliers);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editMode, setEditMode] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Fetch suppliers from Firebase
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const q = query(collection(db, SUPPLIERS_COLLECTION), orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const suppliersData: Supplier[] = [];
+          querySnapshot.forEach((doc) => {
+            suppliersData.push({ ...doc.data() } as Supplier);
+          });
+          setSuppliers(suppliersData);
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching suppliers:', error);
+        toast.error('Failed to fetch suppliers');
+        setLoading(false);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
+
+  // Fetch categories from Firebase
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const q = query(collection(db, CATEGORIES_COLLECTION));
+        const unsubscribe = onSnapshot(q, 
+          (querySnapshot) => {
+            const categoriesData: Category[] = [];
+            querySnapshot.forEach((doc) => {
+              categoriesData.push({ id: doc.id, ...doc.data() } as Category);
+            });
+            // Filter only active categories and sort by name
+            const activeCategories = categoriesData
+              .filter(cat => cat.status === 'Active')
+              .sort((a, b) => a.name.localeCompare(b.name));
+            setCategories(activeCategories);
+            setCategoriesLoading(false);
+          },
+          (error) => {
+            console.error('Error fetching categories:', error);
+            toast.error('Error fetching categories');
+            setCategoriesLoading(false);
+          }
+        );
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const filteredSuppliers = suppliers.filter(supplier =>
     supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -74,69 +141,174 @@ export function Suppliers() {
     supplier.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const generateSupplierId = () => {
-    const id = 'SUP' + String(suppliers.length + 1).padStart(3, '0');
-    setFormData(prev => ({ ...prev, supplierId: id }));
+  const generateSupplierId = async () => {
+    try {
+      const suppliersQuery = query(collection(db, SUPPLIERS_COLLECTION));
+      const querySnapshot = await getDocs(suppliersQuery);
+      const nextId = 'SUP' + String(querySnapshot.size + 1).padStart(3, '0');
+      
+      // Check if the generated ID already exists
+      const docRef = doc(db, SUPPLIERS_COLLECTION, nextId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        // If exists, find the next available ID
+        let newId = nextId;
+        let counter = querySnapshot.size + 1;
+        while (true) {
+          counter++;
+          newId = 'SUP' + String(counter).padStart(3, '0');
+          const checkDocRef = doc(db, SUPPLIERS_COLLECTION, newId);
+          const checkDocSnap = await getDoc(checkDocRef);
+          if (!checkDocSnap.exists()) break;
+        }
+        setFormData(prev => ({ ...prev, supplierId: newId }));
+      } else {
+        setFormData(prev => ({ ...prev, supplierId: nextId }));
+      }
+    } catch (error) {
+      console.error('Error generating supplier ID:', error);
+      toast.error('Failed to generate supplier ID');
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const checkSupplierIdExists = async (supplierId: string): Promise<boolean> => {
+    try {
+      const docRef = doc(db, SUPPLIERS_COLLECTION, supplierId);
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists();
+    } catch (error) {
+      console.error('Error checking supplier ID:', error);
+      return false;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.phone) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const newSupplier = {
-      id: suppliers.length + 1,
-      ...formData,
-      supplierId: formData.supplierId || `SUP${String(suppliers.length + 1).padStart(3, '0')}`,
-      status: 'Active',
-      creditLimit: parseFloat(formData.creditLimit) || 0
-    };
-
-    if (editMode) {
-      setSuppliers(prev => prev.map(s => s.id === selectedSupplier.id ? newSupplier : s));
-      toast.success('Supplier updated successfully');
-      setEditMode(false);
-      setSelectedSupplier(null);
-    } else {
-      setSuppliers(prev => [...prev, newSupplier]);
-      toast.success('Supplier added successfully');
+    if (!formData.supplierId) {
+      toast.error('Please generate or enter a Supplier ID');
+      return;
     }
 
-    setFormData({
-      supplierId: '',
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      category: '',
-      contactPerson: '',
-      paymentTerms: '',
-      creditLimit: '',
-      notes: ''
-    });
+    try {
+      const supplierData = {
+        supplierId: formData.supplierId,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        category: formData.category,
+        contactPerson: formData.contactPerson,
+        paymentTerms: formData.paymentTerms,
+        creditLimit: parseFloat(formData.creditLimit) || 0,
+        notes: formData.notes,
+        status: 'Active' as const,
+        updatedAt: new Date()
+      };
+
+      if (editMode && selectedSupplier) {
+        // Update existing supplier
+        if (formData.supplierId !== selectedSupplier.supplierId) {
+          // If supplier ID changed, we need to delete old document and create new one
+          await deleteDoc(doc(db, SUPPLIERS_COLLECTION, selectedSupplier.supplierId));
+          
+          const newDocRef = doc(db, SUPPLIERS_COLLECTION, formData.supplierId);
+          await setDoc(newDocRef, {
+            ...supplierData,
+            createdAt: selectedSupplier.createdAt || new Date()
+          });
+        } else {
+          // Same supplier ID, just update the document
+          const supplierDoc = doc(db, SUPPLIERS_COLLECTION, formData.supplierId);
+          await updateDoc(supplierDoc, supplierData);
+        }
+        
+        toast.success('Supplier updated successfully');
+        setEditMode(false);
+        setSelectedSupplier(null);
+      } else {
+        // Add new supplier - check if supplier ID already exists
+        const exists = await checkSupplierIdExists(formData.supplierId);
+        if (exists) {
+          toast.error('Supplier ID already exists. Please use a different ID.');
+          return;
+        }
+
+        const newDocRef = doc(db, SUPPLIERS_COLLECTION, formData.supplierId);
+        await setDoc(newDocRef, {
+          ...supplierData,
+          createdAt: new Date()
+        });
+        toast.success('Supplier added successfully');
+      }
+
+      // Reset form
+      setFormData({
+        supplierId: '',
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        category: '',
+        contactPerson: '',
+        paymentTerms: '',
+        creditLimit: '',
+        notes: ''
+      });
+    } catch (error) {
+      console.error('Error saving supplier:', error);
+      toast.error('Failed to save supplier');
+    }
   };
 
-  const deleteSupplier = (supplierId: number) => {
-    setSuppliers(prev => prev.filter(s => s.id !== supplierId));
-    toast.success('Supplier deleted successfully');
+  const deleteSupplier = async (supplierId: string) => {
+    try {
+      await deleteDoc(doc(db, SUPPLIERS_COLLECTION, supplierId));
+      toast.success('Supplier deleted successfully');
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
+      toast.error('Failed to delete supplier');
+    }
   };
 
-  const handleEdit = (supplier: any) => {
+  const handleEdit = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
     setEditMode(true);
     setFormData({
-      ...supplier,
-      creditLimit: supplier.creditLimit.toString()
+      supplierId: supplier.supplierId,
+      name: supplier.name,
+      email: supplier.email,
+      phone: supplier.phone,
+      address: supplier.address,
+      category: supplier.category,
+      contactPerson: supplier.contactPerson,
+      paymentTerms: supplier.paymentTerms,
+      creditLimit: supplier.creditLimit.toString(),
+      notes: supplier.notes
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleView = (supplier: any) => {
+  const handleView = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
     setShowViewDialog(true);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading suppliers...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -157,14 +329,14 @@ export function Suppliers() {
               {/* Supplier ID field */}
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <Label htmlFor="supplierId">Supplier ID</Label>
+                  <Label htmlFor="supplierId">Supplier ID *</Label>
                   <div className="flex gap-2 mt-2">
                     <Input
                       id="supplierId"
                       value={formData.supplierId}
-                      onChange={(e) => setFormData(prev => ({ ...prev, supplierId: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
                       placeholder="Enter supplier ID"
-                      disabled={editMode}
+                      required
                     />
                     {!editMode && (
                       <Button 
@@ -239,31 +411,44 @@ export function Suppliers() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
-                    <Select
+                  <Select
                     value={formData.category}
                     onValueChange={(value: string) =>
                       setFormData((prev) => ({ ...prev, category: value }))
                     }
-                    >
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select category"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Electronics">Electronics</SelectItem>
-                      <SelectItem value="Clothing">Clothing</SelectItem>
-                      <SelectItem value="Food & Beverages">Food & Beverages</SelectItem>
-                      <SelectItem value="Books">Books</SelectItem>
-                      <SelectItem value="Home & Garden">Home & Garden</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      {categories.length === 0 ? (
+                        <SelectItem value="" disabled>
+                          {categoriesLoading ? "Loading categories..." : "No categories available"}
+                        </SelectItem>
+                      ) : (
+                        categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      )}
+                      {categories.length > 0 && (
+                        <SelectItem value="Other">Other</SelectItem>
+                      )}
                     </SelectContent>
-                    </Select>
+                  </Select>
+                  {categories.length === 0 && !categoriesLoading && (
+                    <p className="text-xs text-muted-foreground">
+                      No active categories found. Please add categories first.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentTerms">Payment Terms</Label>
-                    <Select 
+                  <Select 
                     value={formData.paymentTerms} 
                     onValueChange={(value: string) => setFormData(prev => ({ ...prev, paymentTerms: value }))}
-                    >
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select payment terms" />
                     </SelectTrigger>
@@ -273,7 +458,7 @@ export function Suppliers() {
                       <SelectItem value="Net 30">Net 30 Days</SelectItem>
                       <SelectItem value="Net 60">Net 60 Days</SelectItem>
                     </SelectContent>
-                    </Select>
+                  </Select>
                 </div>
               </div>
 
@@ -362,7 +547,7 @@ export function Suppliers() {
           <CardContent>
             <div className="space-y-4 max-h-[calc(100vh-16rem)] overflow-y-auto">
               {filteredSuppliers.map((supplier) => (
-                <div key={supplier.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div key={supplier.supplierId} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h4 className="font-medium">{supplier.name}</h4>
@@ -378,7 +563,7 @@ export function Suppliers() {
                       <Button size="sm" variant="outline" onClick={() => handleEdit(supplier)}>
                         <Edit className="h-3 w-3" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => deleteSupplier(supplier.id)}>
+                      <Button size="sm" variant="outline" onClick={() => deleteSupplier(supplier.supplierId)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -410,7 +595,7 @@ export function Suppliers() {
               
               {filteredSuppliers.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No suppliers found matching your search.
+                  {suppliers.length === 0 ? 'No suppliers found. Add your first supplier!' : 'No suppliers found matching your search.'}
                 </div>
               )}
             </div>

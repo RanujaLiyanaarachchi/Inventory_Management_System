@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { toast } from "sonner";
 import { Switch } from "../ui/switch";
 import { Separator } from "../ui/separator";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -21,6 +21,8 @@ import {
   DialogFooter,
   DialogClose
 } from "../ui/dialog";
+import { doc, setDoc, collection, getDocs, addDoc, deleteDoc, updateDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase'; // Adjust path to your firebase config
 
 interface FormData {
   id: string;
@@ -47,6 +49,13 @@ interface User {
   status: string;
 }
 
+interface Role {
+  name: string;
+  displayName: string;
+  permissions: string[];
+  isCustom: boolean;
+}
+
 export function AddUsers() {
   const { allPermissions, getAllRoles, addCustomRole, deleteCustomRole } = useAuth();
   const [useAutoId, setUseAutoId] = useState<boolean>(true);
@@ -66,17 +75,9 @@ export function AddUsers() {
     permissions: []
   });
 
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "USR001",
-      name: 'John Admin',
-      email: 'admin@example.com',
-      role: 'admin',
-      permissions: allPermissions,
-      profileImage: null,
-      status: 'Active'
-    }
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [roles, setRoles] = useState<Role[]>([]);
 
   // Function to generate a unique user ID
   function generateUserId() {
@@ -85,22 +86,99 @@ export function AddUsers() {
     return `${prefix}${randomNum}`;
   }
 
+  // Fetch roles from Firebase in real-time
+  const fetchRoles = async () => {
+    try {
+      const rolesCollection = collection(db, 'roles');
+      const rolesSnapshot = await getDocs(rolesCollection);
+      const rolesList: Role[] = [];
+
+      rolesSnapshot.forEach((doc) => {
+        rolesList.push({ ...doc.data() } as Role);
+      });
+
+      setRoles(rolesList);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    }
+  };
+
+  // Real-time listener for roles
+  useEffect(() => {
+    const rolesCollection = collection(db, 'roles');
+    const unsubscribe = onSnapshot(rolesCollection, (snapshot) => {
+      const rolesList: Role[] = [];
+      snapshot.forEach((doc) => {
+        rolesList.push({ ...doc.data() } as Role);
+      });
+      setRoles(rolesList);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch users from Firebase
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const usersCollection = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersCollection);
+      const usersList: User[] = [];
+
+      usersSnapshot.forEach((doc) => {
+        usersList.push({ id: doc.id, ...doc.data() } as User);
+      });
+
+      setUsers(usersList);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch users on component mount
+  React.useEffect(() => {
+    fetchUsers();
+    fetchRoles();
+  }, []);
+
+  // Combine default roles with Firebase roles for dropdown
+  const getAllAvailableRoles = () => {
+    const defaultRoles = [
+      { name: 'admin', displayName: 'Admin', permissions: allPermissions, isCustom: false },
+      { name: 'manager', displayName: 'Manager', permissions: ['dashboard', 'inventory', 'sales', 'reports'], isCustom: false },
+      { name: 'cashier', displayName: 'Cashier', permissions: ['dashboard', 'sales'], isCustom: false }
+    ];
+
+    // Merge default roles with Firebase roles, avoiding duplicates
+    const allRoles = [...defaultRoles];
+    roles.forEach(firebaseRole => {
+      if (!allRoles.some(role => role.name === firebaseRole.name)) {
+        allRoles.push(firebaseRole);
+      }
+    });
+
+    return allRoles;
+  };
+
+  const allAvailableRoles = getAllAvailableRoles();
+
   // Toggle between auto-generated ID and manual ID
   const handleToggleAutoId = () => {
     const newValue = !useAutoId;
     setUseAutoId(newValue);
-    
+
     // If toggling to auto ID, generate a new ID
     if (newValue) {
       setFormData(prev => ({ ...prev, id: generateUserId() }));
     }
   };
 
-  const allRoles = getAllRoles();
-
   // Get permissions for selected role
   const getRolePermissions = (role: string): string[] => {
-    const roleData = allRoles.find(r => r.name === role);
+    const roleData = allAvailableRoles.find(r => r.name === role);
     return roleData ? roleData.permissions : [];
   };
 
@@ -150,7 +228,7 @@ export function AddUsers() {
   const handleProfileImageUploadClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Create a new file input element
     const input = document.createElement('input');
     input.type = 'file';
@@ -162,7 +240,7 @@ export function AddUsers() {
           toast.error('Image size should be less than 5MB');
           return;
         }
-        
+
         const reader = new FileReader();
         reader.onload = (event) => {
           setFormData(prev => ({
@@ -186,29 +264,33 @@ export function AddUsers() {
   };
 
   // Reset all roles to default - improved reset function
-  const handleResetRoles = () => {
+  const handleResetRoles = async () => {
     try {
       // Get default roles from the local function
       const defaultRoles = getDefaultRoles();
-      
-      // Delete ALL roles first (custom and default)
-      allRoles.forEach(role => {
-        try {
-          deleteCustomRole(role.name);
-        } catch (error) {
-          console.error(`Failed to delete role ${role.name}:`, error);
-        }
+
+      // Delete ALL roles first (custom and default) from Firebase
+      const rolesCollection = collection(db, 'roles');
+      const rolesSnapshot = await getDocs(rolesCollection);
+
+      const deletePromises = rolesSnapshot.docs.map(async (doc) => {
+        await deleteDoc(doc.ref);
       });
-      
-      // Then add back all the default roles
-      defaultRoles.forEach(role => {
-        try {
-          addCustomRole(role.name, role.permissions);
-        } catch (error) {
-          console.error(`Failed to add role ${role.name}:`, error);
-        }
+
+      await Promise.all(deletePromises);
+
+      // Then add back all the default roles to Firebase
+      const addPromises = defaultRoles.map(async (role) => {
+        await addDoc(rolesCollection, {
+          name: role.name,
+          displayName: role.displayName,
+          permissions: role.permissions,
+          isCustom: false
+        });
       });
-      
+
+      await Promise.all(addPromises);
+
       toast.success('Roles have been reset to default');
     } catch (error) {
       console.error('Reset roles error:', error);
@@ -216,38 +298,62 @@ export function AddUsers() {
     }
   };
 
-  // Add new user
-  const handleSubmit = (e: React.FormEvent) => {
+  // Add new user to Firebase
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formData.name || !formData.email || !formData.password || !formData.role) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    if (users.some(user => user.id === formData.id)) {
-      toast.error('User ID already exists. Please use a different ID.');
-      return;
+    try {
+      setLoading(true);
+
+      // Check if user ID already exists in Firebase
+      const userDocRef = doc(db, 'users', formData.id);
+      const userQuery = query(collection(db, 'users'), where('email', '==', formData.email));
+      const emailSnapshot = await getDocs(userQuery);
+
+      if (!emailSnapshot.empty) {
+        toast.error('Email already exists. Please use a different email.');
+        return;
+      }
+
+      // Create user document with ID as the primary key
+      await setDoc(userDocRef, {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password, // Note: In production, hash this password
+        role: formData.role,
+        permissions: formData.permissions,
+        profileImage: formData.profileImage,
+        status: 'Active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      // Refresh users list
+      await fetchUsers();
+
+      // Reset form with new auto ID
+      setFormData({
+        id: generateUserId(),
+        name: '',
+        email: '',
+        password: '',
+        role: '',
+        permissions: [],
+        profileImage: null
+      });
+
+      toast.success('User added successfully to Firebase');
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error('Failed to add user to Firebase');
+    } finally {
+      setLoading(false);
     }
-
-    const newUser: User = {
-      ...formData,
-      status: 'Active'
-    };
-
-    setUsers(prev => [...prev, newUser]);
-    
-    // Reset form with new auto ID
-    setFormData({
-      id: generateUserId(),
-      name: '', 
-      email: '', 
-      password: '', 
-      role: '',
-      permissions: [], 
-      profileImage: null
-    });
-    
-    toast.success('User added successfully');
   };
 
   // Handle custom role permission toggle
@@ -260,8 +366,8 @@ export function AddUsers() {
     }));
   };
 
-  // Add custom role (without automatically adding all permissions)
-  const handleAddCustomRole = () => {
+  // Add custom role to Firebase
+  const handleAddCustomRole = async () => {
     if (!newRoleForm.name.trim()) {
       toast.error('Please enter a role name');
       return;
@@ -273,24 +379,72 @@ export function AddUsers() {
     }
 
     try {
-      // Only add the selected permissions
-      addCustomRole(newRoleForm.name, newRoleForm.permissions);
+      setLoading(true);
+
+      // Check if role already exists
+      const rolesCollection = collection(db, 'roles');
+      const roleQuery = query(rolesCollection, where('name', '==', newRoleForm.name.toLowerCase()));
+      const roleSnapshot = await getDocs(roleQuery);
+
+      if (!roleSnapshot.empty) {
+        toast.error('Role name already exists');
+        return;
+      }
+
+      // Add custom role to Firebase
+      await addDoc(rolesCollection, {
+        name: newRoleForm.name.toLowerCase(),
+        displayName: newRoleForm.name,
+        permissions: newRoleForm.permissions,
+        isCustom: true,
+        createdAt: new Date().toISOString()
+      });
+
       setNewRoleForm({ name: '', permissions: [] });
-      toast.success('Custom role created successfully');
+      toast.success('Custom role created successfully in Firebase');
     } catch (error) {
+      console.error('Error adding custom role:', error);
       toast.error('Failed to create custom role');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Delete role with better error handling
-  const handleDeleteRole = (roleName: string, isCustom: boolean) => {
+  // Delete role from Firebase
+  const handleDeleteRole = async (roleName: string, isCustom: boolean) => {
     try {
-      // Try to delete the role regardless of whether it's custom or default
-      deleteCustomRole(roleName);
+      setLoading(true);
+
+      // Find the role document
+      const rolesCollection = collection(db, 'roles');
+      const roleQuery = query(rolesCollection, where('name', '==', roleName));
+      const roleSnapshot = await getDocs(roleQuery);
+
+      if (roleSnapshot.empty) {
+        toast.error('Role not found');
+        return;
+      }
+
+      // Check if any users are using this role
+      const usersCollection = collection(db, 'users');
+      const usersQuery = query(usersCollection, where('role', '==', roleName));
+      const usersSnapshot = await getDocs(usersQuery);
+
+      if (!usersSnapshot.empty) {
+        toast.error(`Cannot delete role. ${usersSnapshot.size} user(s) are currently using this role.`);
+        return;
+      }
+
+      // Delete the role
+      const roleDoc = roleSnapshot.docs[0];
+      await deleteDoc(roleDoc.ref);
+
       toast.success(`${isCustom ? 'Custom' : 'Default'} role deleted successfully`);
     } catch (error) {
       console.error(`Error deleting role ${roleName}:`, error);
       toast.error(`Failed to delete role: ${roleName}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -314,14 +468,14 @@ export function AddUsers() {
                 <div className="flex flex-col items-center space-y-6">
                   {/* Profile image */}
                   <div className="flex flex-col items-center gap-2">
-                    <div 
+                    <div
                       onClick={handleProfileImageUploadClick}
                       className="h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-gray-400 cursor-pointer relative group"
                     >
                       {formData.profileImage ? (
-                        <img 
-                          src={formData.profileImage} 
-                          alt="Profile" 
+                        <img
+                          src={formData.profileImage}
+                          alt="Profile"
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -331,9 +485,9 @@ export function AddUsers() {
                         </div>
                       )}
                     </div>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       size="sm"
                       onClick={handleProfileImageUploadClick}
                       className="h-7 px-3 text-xs flex items-center gap-1"
@@ -352,17 +506,17 @@ export function AddUsers() {
                   </div>
 
                   {/* User ID */}
-                    <div className="flex flex-col space-y-3 w-full max-w-md">
+                  <div className="flex flex-col space-y-3 w-full max-w-md">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="userId" className="text-base">User ID *</Label>
                       <Button
-                      type="button"
-                      size="sm"
-                      variant={useAutoId ? "default" : "outline"}
-                      className="h-7 px-3 text-xs"
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleToggleAutoId()}
+                        type="button"
+                        size="sm"
+                        variant={useAutoId ? "default" : "outline"}
+                        className="h-7 px-3 text-xs"
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleToggleAutoId()}
                       >
-                      {useAutoId ? "Auto ID: ON" : "Auto ID: OFF"}
+                        {useAutoId ? "Auto ID: ON" : "Auto ID: OFF"}
                       </Button>
                     </div>
                     <Input
@@ -374,7 +528,7 @@ export function AddUsers() {
                       required
                       className="font-mono"
                     />
-                    </div>
+                  </div>
                 </div>
 
                 {/* Basic Information */}
@@ -421,8 +575,7 @@ export function AddUsers() {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="cashier">Cashier</SelectItem>
-                        {allRoles.map(role => (
+                        {allAvailableRoles.map(role => (
                           <SelectItem key={role.name} value={role.name}>
                             {role.displayName}
                             {role.isCustom && <Badge variant="outline" className="ml-2">Custom</Badge>}
@@ -441,7 +594,7 @@ export function AddUsers() {
                       {formData.permissions.length} of {allPermissions.length} selected
                     </Badge>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 border rounded-lg max-h-64 overflow-y-auto bg-muted/10">
                     {allPermissions.map(permission => (
                       <div key={permission} className="flex items-center space-x-2">
@@ -462,17 +615,17 @@ export function AddUsers() {
 
                   {/* Quick Selection Buttons */}
                   <div className="flex gap-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       size="sm"
                       onClick={() => setFormData(prev => ({ ...prev, permissions: [...allPermissions] }))}
                     >
                       Select All
                     </Button>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       size="sm"
                       onClick={() => setFormData(prev => ({ ...prev, permissions: [] }))}
                     >
@@ -481,9 +634,9 @@ export function AddUsers() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full mt-2">
+                <Button type="submit" className="w-full mt-2" disabled={loading}>
                   <UserPlus className="h-4 w-4 mr-2" />
-                  Add User
+                  {loading ? 'Adding User...' : 'Add User'}
                 </Button>
               </form>
             </CardContent>
@@ -497,11 +650,11 @@ export function AddUsers() {
                   <Settings className="h-5 w-5" />
                   Manage Roles
                 </CardTitle>
-                
+
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       className="h-8"
                     >
@@ -513,7 +666,7 @@ export function AddUsers() {
                     <DialogHeader>
                       <DialogTitle>Reset Roles to Default</DialogTitle>
                       <DialogDescription>
-                        This will remove all roles and restore the default system roles. 
+                        This will remove all roles and restore the default system roles.
                         This action cannot be undone.
                       </DialogDescription>
                     </DialogHeader>
@@ -522,11 +675,12 @@ export function AddUsers() {
                         <Button variant="outline">Cancel</Button>
                       </DialogClose>
                       <DialogClose asChild>
-                        <Button 
+                        <Button
                           onClick={handleResetRoles}
                           variant="destructive"
+                          disabled={loading}
                         >
-                          Yes, Reset Roles
+                          {loading ? 'Resetting...' : 'Yes, Reset Roles'}
                         </Button>
                       </DialogClose>
                     </DialogFooter>
@@ -549,15 +703,16 @@ export function AddUsers() {
                         onChange={(e) => setNewRoleForm(prev => ({ ...prev, name: e.target.value }))}
                       />
                     </div>
-                    <Button 
+                    <Button
                       onClick={handleAddCustomRole}
                       className="w-full"
+                      disabled={loading}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Create Role
+                      {loading ? 'Creating...' : 'Create Role'}
                     </Button>
                   </div>
-                  
+
                   {/* Custom Role Permissions */}
                   <div className="space-y-3 mt-4">
                     <div className="flex items-center justify-between">
@@ -566,7 +721,7 @@ export function AddUsers() {
                         {newRoleForm.permissions.length} of {allPermissions.length} selected
                       </Badge>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 border rounded-lg max-h-48 overflow-y-auto bg-muted/10">
                       {allPermissions.map(permission => (
                         <div key={`new-role-${permission}`} className="flex items-center space-x-2">
@@ -584,20 +739,20 @@ export function AddUsers() {
                         </div>
                       ))}
                     </div>
-                    
+
                     {/* Quick Selection Buttons for New Role */}
                     <div className="flex gap-2">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         size="sm"
                         onClick={() => setNewRoleForm(prev => ({ ...prev, permissions: [...allPermissions] }))}
                       >
                         Select All
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         size="sm"
                         onClick={() => setNewRoleForm(prev => ({ ...prev, permissions: [] }))}
                       >
@@ -613,34 +768,7 @@ export function AddUsers() {
                 <div className="space-y-3">
                   <h3 className="text-base font-medium">All Available Roles</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
-                    {/* Cashier Role */}
-                    <div className="p-3 border rounded-lg hover:bg-muted/20 transition-colors">
-                      <div className="flex items-center justify-between mb-1">
-                        <h5 className="font-medium">Cashier</h5>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">System</Badge>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => handleDeleteRole('cashier', false)}
-                            className="h-7 w-7 p-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-1">
-                        4 permissions
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        <Badge variant="outline" className="text-xs">dashboard</Badge>
-                        <Badge variant="outline" className="text-xs">sales</Badge>
-                        <Badge variant="outline" className="text-xs">+2 more</Badge>
-                      </div>
-                    </div>
-                    
-                    {/* Other Roles */}
-                    {allRoles.map(role => (
+                    {allAvailableRoles.map(role => (
                       <div key={role.name} className="p-3 border rounded-lg hover:bg-muted/20 transition-colors">
                         <div className="flex items-center justify-between mb-1">
                           <h5 className="font-medium">
@@ -650,11 +778,12 @@ export function AddUsers() {
                             <Badge variant={role.isCustom ? "outline" : "secondary"}>
                               {role.isCustom ? "Custom" : "System"}
                             </Badge>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="ghost"
                               onClick={() => handleDeleteRole(role.name, role.isCustom)}
                               className="h-7 w-7 p-0"
+                              disabled={loading}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -693,7 +822,11 @@ export function AddUsers() {
               <CardDescription>Recently added users</CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
-              {users.length === 0 ? (
+              {loading ? (
+                <div className="flex justify-center py-6">
+                  <RefreshCw className="h-6 w-6 animate-spin" />
+                </div>
+              ) : users.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
                   <Users className="h-8 w-8 mb-2" />
                   <p>No users added yet</p>
@@ -704,9 +837,9 @@ export function AddUsers() {
                     <div key={user.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/20 transition-colors">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
                         {user.profileImage ? (
-                          <img 
-                            src={user.profileImage} 
-                            alt={user.name} 
+                          <img
+                            src={user.profileImage}
+                            alt={user.name}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -743,19 +876,19 @@ export function AddUsers() {
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">Default Roles</h3>
                   <p className="text-sm text-muted-foreground">
-                    System comes with predefined roles like Admin, Manager, Cashier, and User. 
+                    System comes with predefined roles like Admin, Manager, Cashier, and User.
                     All roles can be deleted if no longer needed.
                   </p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">Custom Roles</h3>
                   <p className="text-sm text-muted-foreground">
-                    Create custom roles when your organization has specific permission requirements 
+                    Create custom roles when your organization has specific permission requirements
                     not covered by default roles.
                   </p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">Permissions</h3>
                   <p className="text-sm text-muted-foreground">

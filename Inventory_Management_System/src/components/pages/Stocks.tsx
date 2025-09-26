@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,70 +9,313 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { BarChart3, Plus, Minus, Search, Filter, AlertTriangle, Package } from 'lucide-react';
 import { toast } from "sonner";
 
-const mockStocks = [
-  { id: 1, name: 'iPhone 14 Pro', sku: 'IPH14P-128GB', currentStock: 25, minStock: 10, maxStock: 100, location: 'A1-B2', lastUpdated: '2024-01-15' },
-  { id: 2, name: 'Samsung Galaxy S23', sku: 'SGS23-256GB', currentStock: 5, minStock: 10, maxStock: 50, location: 'A2-C1', lastUpdated: '2024-01-14' },
-  { id: 3, name: 'MacBook Pro 14"', sku: 'MBP14-512GB', currentStock: 8, minStock: 5, maxStock: 25, location: 'B1-A3', lastUpdated: '2024-01-13' },
-  { id: 4, name: 'Dell XPS 13', sku: 'DXP13-256GB', currentStock: 15, minStock: 8, maxStock: 30, location: 'B2-B1', lastUpdated: '2024-01-12' },
-  { id: 5, name: 'iPad Air', sku: 'IPA-128GB', currentStock: 2, minStock: 5, maxStock: 40, location: 'C1-A2', lastUpdated: '2024-01-11' }
-];
+// Firebase imports
+import { 
+  collection, 
+  updateDoc, 
+  doc, 
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+  where, 
+  addDoc
+} from 'firebase/firestore';
+import { db } from '../../firebase';
+
+// Product interface (from your Products page)
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  supplier: string;
+  costPrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStock: number;
+  status: string;
+  barcode: string;
+  imageUrl: string | null;
+  description?: string;
+  weight?: string;
+  dimensions?: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+// GRN Item interface (from your GRN page)
+interface GRNItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+// GRN interface (from your GRN page)
+interface GRN {
+  id: string;
+  supplier: string;
+  supplierId: string;
+  date: string;
+  status: string;
+  total: number;
+  items: number;
+  notes?: string;
+  itemsList?: GRNItem[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Supplier Return interface (from your SupplierReturn page)
+interface SupplierReturn {
+  id: string;
+  supplierId: string;
+  supplier: string;
+  date: string;
+  items: number;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Processed' | 'Rejected' | 'Completed';
+  amount: number;
+  notes: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export function Stocks() {
-  const [stocks, setStocks] = useState(mockStocks);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [grns, setGrns] = useState<GRN[]>([]);
+  const [supplierReturns, setSupplierReturns] = useState<SupplierReturn[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedStock, setSelectedStock] = useState<number | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [adjustmentType, setAdjustmentType] = useState<'add' | 'remove'>('add');
   const [adjustmentQuantity, setAdjustmentQuantity] = useState('');
   const [adjustmentReason, setAdjustmentReason] = useState<{reason: string; note?: string}>({reason: ''});
+  const [loading, setLoading] = useState(true);
 
-  const getStockStatus = (current: number, min: number, max: number) => {
+  // Firebase collection references
+  const productsCollectionRef = collection(db, 'products');
+  const grnCollectionRef = collection(db, 'grns');
+  const supplierReturnsCollectionRef = collection(db, 'supplierReturns');
+  const stockMovementsCollectionRef = collection(db, 'stockMovements');
+
+  // Fetch products, GRNs, and supplier returns in real-time
+  useEffect(() => {
+    setLoading(true);
+
+    // Fetch products
+    const productsQuery = query(productsCollectionRef, orderBy('createdAt', 'desc'));
+    const unsubscribeProducts = onSnapshot(productsQuery, (snapshot) => {
+      const productsData: Product[] = [];
+      snapshot.forEach((doc) => {
+        productsData.push({ id: doc.id, ...doc.data() } as Product);
+      });
+      setProducts(productsData);
+    });
+
+    // Fetch GRNs
+    const grnQuery = query(grnCollectionRef, orderBy('createdAt', 'desc'));
+    const unsubscribeGrns = onSnapshot(grnQuery, (snapshot) => {
+      const grnsData: GRN[] = [];
+      snapshot.forEach((doc) => {
+        grnsData.push({ id: doc.id, ...doc.data() } as GRN);
+      });
+      setGrns(grnsData);
+    });
+
+    // Fetch supplier returns
+    const returnsQuery = query(supplierReturnsCollectionRef, orderBy('createdAt', 'desc'));
+    const unsubscribeReturns = onSnapshot(returnsQuery, (snapshot) => {
+      const returnsData: SupplierReturn[] = [];
+      snapshot.forEach((doc) => {
+        returnsData.push({ id: doc.id, ...doc.data() } as SupplierReturn);
+      });
+      setSupplierReturns(returnsData);
+    });
+
+    // Set loading to false after initial data load
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+
+    return () => {
+      unsubscribeProducts();
+      unsubscribeGrns();
+      unsubscribeReturns();
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Calculate current stock for each product based on GRNs and Supplier Returns
+  const calculateCurrentStock = (product: Product) => {
+    let currentStock = product.stock || 0;
+
+    // Add stock from GRNs (goods received)
+    grns.forEach(grn => {
+      if (grn.status === 'Received' && grn.itemsList) {
+        grn.itemsList.forEach(item => {
+          // Simple matching by product name - you might want to use product ID or SKU in a real scenario
+          if (item.name.toLowerCase().includes(product.name.toLowerCase()) || 
+              product.name.toLowerCase().includes(item.name.toLowerCase())) {
+            currentStock += item.quantity;
+          }
+        });
+      }
+    });
+
+    // Subtract stock from approved supplier returns (goods returned to supplier)
+    supplierReturns.forEach(returnItem => {
+      if (returnItem.status === 'Approved' || returnItem.status === 'Processed' || returnItem.status === 'Completed') {
+        // Simple matching by supplier - you might want more sophisticated matching
+        if (returnItem.supplier.toLowerCase().includes(product.supplier.toLowerCase()) ||
+            product.supplier.toLowerCase().includes(returnItem.supplier.toLowerCase())) {
+          currentStock = Math.max(0, currentStock - returnItem.items);
+        }
+      }
+    });
+
+    return currentStock;
+  };
+
+  const getStockStatus = (current: number, min: number) => {
+    if (current === 0) return 'out-of-stock';
     if (current <= min) return 'low';
-    if (current >= max * 0.9) return 'high';
+    if (current > min * 2) return 'high';
     return 'normal';
   };
 
-  const filteredStocks = stocks.filter(stock => {
-    const matchesSearch = stock.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         stock.sku.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.supplier.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filterStatus === 'all') return matchesSearch;
     
-    const status = getStockStatus(stock.currentStock, stock.minStock, stock.maxStock);
+    const currentStock = calculateCurrentStock(product);
+    const status = getStockStatus(currentStock, product.minStock);
     return matchesSearch && status === filterStatus;
   });
 
-  const handleStockAdjustment = () => {
-    if (!selectedStock || !adjustmentQuantity || !adjustmentReason.reason) {
+  const handleStockAdjustment = async () => {
+    if (!selectedProduct || !adjustmentQuantity || !adjustmentReason.reason) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    const quantity = parseInt(adjustmentQuantity);
-    setStocks(prev => prev.map(stock => {
-      if (stock.id === selectedStock) {
-        const newStock = adjustmentType === 'add' 
-          ? stock.currentStock + quantity 
-          : Math.max(0, stock.currentStock - quantity);
-        
-        return {
-          ...stock,
-          currentStock: newStock,
-          lastUpdated: new Date().toISOString().split('T')[0]
-        };
-      }
-      return stock;
-    }));
+    // Validate reason note for 'other'
+    if (adjustmentReason.reason === 'other' && !adjustmentReason.note?.trim()) {
+      toast.error('Please provide a note for "Other" reason');
+      return;
+    }
 
-    setSelectedStock(null);
-    setAdjustmentQuantity('');
-    setAdjustmentReason({reason: ''});
-    toast.success(`Stock ${adjustmentType === 'add' ? 'added' : 'removed'} successfully`);
+    const quantity = parseInt(adjustmentQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      toast.error('Please enter a valid quantity');
+      return;
+    }
+
+    try {
+      const productDocRef = doc(db, 'products', selectedProduct);
+      const product = products.find(p => p.id === selectedProduct);
+      
+      if (!product) {
+        toast.error('Product not found');
+        return;
+      }
+
+      const currentStock = calculateCurrentStock(product);
+      let newStock;
+
+      if (adjustmentType === 'add') {
+        newStock = currentStock + quantity;
+        // Update the base stock in the product document
+        await updateDoc(productDocRef, {
+          stock: (product.stock || 0) + quantity,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        newStock = Math.max(0, currentStock - quantity);
+        // Update the base stock in the product document
+        const updatedBaseStock = Math.max(0, (product.stock || 0) - quantity);
+        await updateDoc(productDocRef, {
+          stock: updatedBaseStock,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Create stock movement record
+      await addDoc(stockMovementsCollectionRef, {
+        productId: selectedProduct,
+        productName: product.name,
+        productSku: product.sku,
+        type: adjustmentType,
+        quantity: quantity,
+        reason: adjustmentReason.reason,
+        note: adjustmentReason.note,
+        previousStock: currentStock,
+        newStock: newStock,
+        timestamp: serverTimestamp(),
+        date: new Date().toISOString().split('T')[0],
+        adjustedBy: 'Manual Adjustment' // In a real app, this would be the user's name
+      });
+
+      setSelectedProduct(null);
+      setAdjustmentQuantity('');
+      setAdjustmentReason({reason: ''});
+      toast.success(`Stock ${adjustmentType === 'add' ? 'added' : 'removed'} successfully`);
+    } catch (error) {
+      console.error('Error adjusting stock:', error);
+      toast.error('Failed to adjust stock');
+    }
   };
 
-  const lowStockCount = stocks.filter(stock => 
-    getStockStatus(stock.currentStock, stock.minStock, stock.maxStock) === 'low'
-  ).length;
+  const calculateTotalStockValue = () => {
+    return products.reduce((total, product) => {
+      const currentStock = calculateCurrentStock(product);
+      return total + (currentStock * product.costPrice);
+    }, 0);
+  };
+
+  const calculateStockMovementsThisMonth = () => {
+    // This would typically come from stockMovements collection
+    // For now, we'll calculate based on recent GRNs and returns
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    const monthlyMovements = grns.filter(grn => {
+      const grnDate = new Date(grn.date);
+      return grnDate.getMonth() === currentMonth && grnDate.getFullYear() === currentYear;
+    }).length + supplierReturns.filter(ret => {
+      const retDate = new Date(ret.date);
+      return retDate.getMonth() === currentMonth && retDate.getFullYear() === currentYear;
+    }).length;
+
+    return monthlyMovements;
+  };
+
+  const lowStockCount = products.filter(product => {
+    const currentStock = calculateCurrentStock(product);
+    return getStockStatus(currentStock, product.minStock) === 'low' || 
+           getStockStatus(currentStock, product.minStock) === 'out-of-stock';
+  }).length;
+
+  const outOfStockCount = products.filter(product => {
+    const currentStock = calculateCurrentStock(product);
+    return getStockStatus(currentStock, product.minStock) === 'out-of-stock';
+  }).length;
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading stock data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -84,19 +327,21 @@ export function Stocks() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stocks.length}</div>
-            <p className="text-xs text-muted-foreground">Active products in inventory</p>
+            <div className="text-2xl font-bold">{products.length}</div>
+            <p className="text-xs text-muted-foreground">Products in inventory</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
+            <CardTitle className="text-sm font-medium">Stock Alerts</CardTitle>
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{lowStockCount}</div>
-            <p className="text-xs text-muted-foreground">Products below minimum level</p>
+            <p className="text-xs text-muted-foreground">
+              {outOfStockCount > 0 ? `${outOfStockCount} out of stock` : 'Low stock items'}
+            </p>
           </CardContent>
         </Card>
 
@@ -106,18 +351,18 @@ export function Stocks() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$127,450</div>
+            <div className="text-2xl font-bold">LKR {calculateTotalStockValue().toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Current inventory value</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Movements</CardTitle>
+            <CardTitle className="text-sm font-medium">Monthly Movements</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">247</div>
+            <div className="text-2xl font-bold">{calculateStockMovementsThisMonth()}</div>
             <p className="text-xs text-muted-foreground">Movements this month</p>
           </CardContent>
         </Card>
@@ -128,7 +373,9 @@ export function Stocks() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Stock Inventory</CardTitle>
-            <CardDescription>Manage your product stock levels</CardDescription>
+            <CardDescription>
+              Real-time stock levels from GRN receipts and supplier returns
+            </CardDescription>
             
             {/* Search and Filter */}
             <div className="flex gap-4 mt-4">
@@ -136,7 +383,7 @@ export function Stocks() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search products..."
+                    placeholder="Search products by name, SKU, category, or supplier..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -150,6 +397,7 @@ export function Stocks() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Stock</SelectItem>
+                  <SelectItem value="out-of-stock">Out of Stock</SelectItem>
                   <SelectItem value="low">Low Stock</SelectItem>
                   <SelectItem value="normal">Normal Stock</SelectItem>
                   <SelectItem value="high">High Stock</SelectItem>
@@ -165,45 +413,62 @@ export function Stocks() {
                   <TableRow>
                     <TableHead>Product</TableHead>
                     <TableHead>SKU</TableHead>
-                    <TableHead>Current</TableHead>
-                    <TableHead>Min/Max</TableHead>
-                    <TableHead>Location</TableHead>
+                    <TableHead>Current Stock</TableHead>
+                    <TableHead>Min Stock</TableHead>
+                    <TableHead>Supplier</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredStocks.map((stock) => {
-                    const status = getStockStatus(stock.currentStock, stock.minStock, stock.maxStock);
-                    return (
-                      <TableRow key={stock.id}>
-                        <TableCell className="font-medium">{stock.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{stock.sku}</TableCell>
-                        <TableCell>
-                          <span className={status === 'low' ? 'text-destructive font-medium' : ''}>{stock.currentStock}</span>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{stock.minStock}/{stock.maxStock}</TableCell>
-                        <TableCell>{stock.location}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            status === 'low' ? 'destructive' : 
-                            status === 'high' ? 'secondary' : 'default'
-                          }>
-                            {status === 'low' ? 'Low Stock' : status === 'high' ? 'High Stock' : 'Normal'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedStock(stock.id)}
-                          >
-                            Adjust
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filteredProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        {products.length === 0 ? 'No products found. Add products first.' : 'No products match your search criteria.'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredProducts.map((product) => {
+                      const currentStock = calculateCurrentStock(product);
+                      const status = getStockStatus(currentStock, product.minStock);
+                      return (
+                        <TableRow key={product.id}>
+                          <TableCell className="font-medium">{product.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{product.sku}</TableCell>
+                          <TableCell>
+                            <span className={
+                              status === 'out-of-stock' ? 'text-destructive font-bold' :
+                              status === 'low' ? 'text-destructive font-medium' : ''
+                            }>
+                              {currentStock} units
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{product.minStock} units</TableCell>
+                          <TableCell>{product.supplier}</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              status === 'out-of-stock' ? 'destructive' : 
+                              status === 'low' ? 'destructive' : 
+                              status === 'high' ? 'secondary' : 'default'
+                            }>
+                              {status === 'out-of-stock' ? 'Out of Stock' : 
+                               status === 'low' ? 'Low Stock' : 
+                               status === 'high' ? 'High Stock' : 'Normal'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedProduct(product.id)}
+                            >
+                              Adjust
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -213,18 +478,24 @@ export function Stocks() {
         {/* Stock Adjustment Panel */}
         <Card>
           <CardHeader>
-            <CardTitle>Stock Adjustment</CardTitle>
+            <CardTitle>Manual Stock Adjustment</CardTitle>
             <CardDescription>Add or remove stock for selected product</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedStock ? (
+            {selectedProduct ? (
               <>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="font-medium">
-                    {stocks.find(s => s.id === selectedStock)?.name}
+                    {products.find(p => p.id === selectedProduct)?.name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Current Stock: {stocks.find(s => s.id === selectedStock)?.currentStock} units
+                    SKU: {products.find(p => p.id === selectedProduct)?.sku}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Current Stock: {calculateCurrentStock(products.find(p => p.id === selectedProduct)!)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Base Stock: {products.find(p => p.id === selectedProduct)?.stock}
                   </p>
                 </div>
 
@@ -249,15 +520,16 @@ export function Stocks() {
                     value={adjustmentQuantity}
                     onChange={(e) => setAdjustmentQuantity(e.target.value)}
                     placeholder="Enter quantity"
+                    min="1"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason</Label>
-                    <Select 
+                  <Select 
                     value={adjustmentReason.reason} 
                     onValueChange={(value: "received" | "sold" | "damaged" | "expired" | "returned" | "audit" | "other" | "") => setAdjustmentReason({reason: value})}
-                    >
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select reason" />
                     </SelectTrigger>
@@ -270,7 +542,7 @@ export function Stocks() {
                       <SelectItem value="audit">Stock Audit</SelectItem>
                       <SelectItem value="other">Other (add note below)</SelectItem>
                     </SelectContent>
-                    </Select>
+                  </Select>
                 </div>
 
                 {/* Show note input only if reason is "other" */}
@@ -293,7 +565,11 @@ export function Stocks() {
                     {adjustmentType === 'add' ? <Plus className="h-4 w-4 mr-2" /> : <Minus className="h-4 w-4 mr-2" />}
                     {adjustmentType === 'add' ? 'Add Stock' : 'Remove Stock'}
                   </Button>
-                  <Button variant="outline" onClick={() => setSelectedStock(null)}>
+                  <Button variant="outline" onClick={() => {
+                    setSelectedProduct(null);
+                    setAdjustmentQuantity('');
+                    setAdjustmentReason({reason: ''});
+                  }}>
                     Cancel
                   </Button>
                 </div>

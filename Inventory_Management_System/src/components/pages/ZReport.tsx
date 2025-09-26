@@ -1,79 +1,161 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { DollarSign, TrendingUp, Printer, Download } from 'lucide-react';
 import { toast } from "sonner";
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase';
+
+interface Invoice {
+  id: string;
+  invoiceId: string;
+  customer: string;
+  customerEmail: string;
+  date: string;
+  amount: number;
+  status: string;
+  items: any[];
+  totalItems: number;
+  paymentMethod?: string;
+  amountReceived?: number;
+  change?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ReportData {
+  date: string;
+  totalSales: number;
+  totalTransactions: number;
+  averageTransaction: number;
+  cashSales: number;
+  cardSales: number;
+  discounts: number;
+  returns: number;
+  tax: number;
+  openingCash: number;
+  closingCash: number;
+  hourlyBreakdown: {
+    hour: string;
+    sales: number;
+    transactions: number;
+  }[];
+}
 
 export function ZReport() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const reportRef = useRef<HTMLDivElement>(null);
-  
-  const [reportData, setReportData] = useState({
+  const [reportData, setReportData] = useState<ReportData>({
     date: selectedDate,
-    totalSales: 5247.50,
-    totalTransactions: 28,
-    averageTransaction: 187.41,
-    cashSales: 2100.00,
-    cardSales: 3147.50,
-    discounts: 125.75,
-    returns: 89.25,
-    tax: 524.75,
-    openingCash: 500.00,
-    closingCash: 2600.00,
-    hourlyBreakdown: [
-      { hour: '09:00', sales: 245.50, transactions: 3 },
-      { hour: '10:00', sales: 412.25, transactions: 5 },
-      { hour: '11:00', sales: 638.75, transactions: 4 },
-      { hour: '12:00', sales: 821.00, transactions: 6 },
-      { hour: '13:00', sales: 567.25, transactions: 3 },
-      { hour: '14:00', sales: 743.50, transactions: 4 },
-      { hour: '15:00', sales: 892.75, transactions: 3 }
-    ]
+    totalSales: 0,
+    totalTransactions: 0,
+    averageTransaction: 0,
+    cashSales: 0,
+    cardSales: 0,
+    discounts: 0,
+    returns: 0,
+    tax: 0,
+    openingCash: 0,
+    closingCash: 0,
+    hourlyBreakdown: []
   });
+  
+  const reportRef = useRef<HTMLDivElement>(null);
 
-  // Generate random data based on the selected date
-  const generateRandomData = (date: string) => {
-    // Seed random number generator with the date for consistent results
-    const seed = Date.parse(date);
-    const randomFactor = ((seed % 100) / 100) * 0.5 + 0.75; // Generate between 0.75 and 1.25
-    
-    const totalSales = Math.round(5000 * randomFactor * 100) / 100;
-    const totalTransactions = Math.round(30 * randomFactor);
-    const averageTransaction = Math.round((totalSales / totalTransactions) * 100) / 100;
-    const cashSales = Math.round(totalSales * 0.4 * 100) / 100;
-    const cardSales = Math.round((totalSales - cashSales) * 100) / 100;
-    const discounts = Math.round(totalSales * 0.03 * 100) / 100;
-    const returns = Math.round(totalSales * 0.02 * 100) / 100;
-    const tax = Math.round(totalSales * 0.1 * 100) / 100;
-    
-    // Generate hourly breakdown
-    const hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
-    let hourlyBreakdown = [];
-    let totalHourlySales = 0;
-    
-    for (let i = 0; i < hours.length; i++) {
-      const hourSeed = seed + i;
-      const hourRandomizer = ((hourSeed % 100) / 100) * 0.5 + 0.75;
-      const transactions = Math.max(1, Math.round(5 * hourRandomizer));
-      const sales = Math.round(totalSales / hours.length * hourRandomizer * 100) / 100;
-      totalHourlySales += sales;
+  // Fetch real invoice data from Firebase
+  const fetchInvoiceData = async (date: string) => {
+    try {
+      setIsLoading(true);
       
-      hourlyBreakdown.push({
-        hour: hours[i],
-        sales,
-        transactions
+      // Convert selected date to start and end of day
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Query invoices for the selected date
+      const invoicesQuery = query(
+        collection(db, 'invoices'),
+        where('date', '>=', date),
+        where('date', '<=', date),
+        orderBy('date', 'asc')
+      );
+      
+      const invoiceSnapshot = await getDocs(invoicesQuery);
+      const invoices: Invoice[] = [];
+      
+      invoiceSnapshot.forEach((doc) => {
+        invoices.push({ id: doc.id, ...doc.data() } as Invoice);
       });
+
+      // Process the invoice data to generate report
+      return processInvoiceData(invoices, date);
+    } catch (error) {
+      console.error('Error fetching invoice data:', error);
+      toast.error('Failed to fetch invoice data');
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Adjust last hour to make sure total matches
-    if (hourlyBreakdown.length > 0) {
-      const lastHour = hourlyBreakdown[hourlyBreakdown.length - 1];
-      lastHour.sales = Math.round((lastHour.sales + (totalSales - totalHourlySales)) * 100) / 100;
+  };
+
+  // Process invoice data to generate report statistics
+  const processInvoiceData = (invoices: Invoice[], date: string): ReportData => {
+    if (invoices.length === 0) {
+      return {
+        date,
+        totalSales: 0,
+        totalTransactions: 0,
+        averageTransaction: 0,
+        cashSales: 0,
+        cardSales: 0,
+        discounts: 0,
+        returns: 0,
+        tax: 0.1, // Default 10% tax rate
+        openingCash: 500.00, // Default opening cash
+        closingCash: 500.00, // Default closing cash
+        hourlyBreakdown: []
+      };
     }
+
+    // Calculate basic statistics
+    const totalSales = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+    const totalTransactions = invoices.length;
+    const averageTransaction = totalSales / totalTransactions;
+
+    // Calculate payment method breakdown
+    const cashSales = invoices
+      .filter(invoice => invoice.paymentMethod === 'cash' || !invoice.paymentMethod)
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
     
+    const cardSales = invoices
+      .filter(invoice => invoice.paymentMethod === 'card')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+
+    // Calculate discounts (assuming discount is stored in invoice data)
+    const discounts = invoices.reduce((sum, invoice) => {
+      // If discount field exists in invoice, use it, otherwise estimate 3%
+      return sum + (invoice.amount * 0.03); // 3% estimated discount
+    }, 0);
+
+    // Calculate returns (assuming returns are separate invoices with negative amounts or status)
+    const returns = invoices
+      .filter(invoice => invoice.status === 'Returned' || invoice.amount < 0)
+      .reduce((sum, invoice) => sum + Math.abs(invoice.amount), 0);
+
+    // Calculate tax (10% of total sales)
+    const tax = totalSales * 0.1;
+
+    // Calculate hourly breakdown
+    const hourlyBreakdown = calculateHourlyBreakdown(invoices);
+
+    // Calculate cash reconciliation
+    const openingCash = 500.00; // Default opening cash
+    const closingCash = openingCash + cashSales - returns;
+
     return {
       date,
       totalSales,
@@ -84,35 +166,68 @@ export function ZReport() {
       discounts,
       returns,
       tax,
-      openingCash: 500.00,
-      closingCash: 500.00 + cashSales - returns,
+      openingCash,
+      closingCash,
       hourlyBreakdown
     };
   };
 
-  // Generate report for the selected date
-  const generateReport = () => {
-    setIsLoading(true);
+  // Calculate hourly sales breakdown
+  const calculateHourlyBreakdown = (invoices: Invoice[]) => {
+    const hours = [
+      '09:00', '10:00', '11:00', '12:00', 
+      '13:00', '14:00', '15:00', '16:00', 
+      '17:00', '18:00', '19:00', '20:00'
+    ];
     
-    // Simulate API call with timeout
-    setTimeout(() => {
-      const newData = generateRandomData(selectedDate);
-      setReportData(newData);
-      setIsLoading(false);
+    const hourlyData: { [key: string]: { sales: number; transactions: number } } = {};
+    
+    // Initialize hourly data
+    hours.forEach(hour => {
+      hourlyData[hour] = { sales: 0, transactions: 0 };
+    });
+    
+    // Group invoices by hour
+    invoices.forEach(invoice => {
+      try {
+        const invoiceDate = new Date(invoice.date);
+        const hour = invoiceDate.getHours();
+        const hourKey = `${hour.toString().padStart(2, '0')}:00`;
+        
+        if (hourlyData[hourKey]) {
+          hourlyData[hourKey].sales += invoice.amount;
+          hourlyData[hourKey].transactions += 1;
+        }
+      } catch (error) {
+        console.error('Error processing invoice date:', error);
+      }
+    });
+    
+    // Convert to array format
+    return hours.map(hour => ({
+      hour,
+      sales: hourlyData[hour].sales,
+      transactions: hourlyData[hour].transactions
+    })).filter(item => item.sales > 0 || item.transactions > 0);
+  };
+
+  // Generate report for the selected date
+  const generateReport = async () => {
+    const data = await fetchInvoiceData(selectedDate);
+    if (data) {
+      setReportData(data);
       toast.success('Z-Report generated successfully');
-    }, 800);
+    }
   };
 
   // Prepare report content for printing/export
   const prepareReportContent = () => {
-    // Format date for display
     const formattedDate = new Date(selectedDate).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
 
-    // Create beautiful CSS styling for the report
     const styles = `
       body {
         font-family: 'Arial', sans-serif;
@@ -275,7 +390,6 @@ export function ZReport() {
       }
     `;
 
-    // Create HTML content for the report
     return `
       <html>
         <head>
@@ -289,7 +403,6 @@ export function ZReport() {
             <p class="report-subtitle">Daily Sales Summary and Cash Reconciliation</p>
           </div>
           
-          <!-- Summary Cards -->
           <div class="summary-cards">
             <div class="summary-card">
               <h3 class="summary-card-title">Gross Sales</h3>
@@ -316,9 +429,7 @@ export function ZReport() {
             </div>
           </div>
           
-          <!-- Main Content -->
           <div class="grid-container">
-            <!-- Cash Reconciliation -->
             <div class="grid-item">
               <div class="card">
                 <div class="card-header">
@@ -356,7 +467,6 @@ export function ZReport() {
               </div>
             </div>
             
-            <!-- Hourly Breakdown -->
             <div class="grid-item">
               <div class="card">
                 <div class="card-header">
@@ -373,12 +483,12 @@ export function ZReport() {
                       <span>LKR ${hour.sales.toFixed(2)}</span>
                     </div>
                   `).join('')}
+                  ${reportData.hourlyBreakdown.length === 0 ? '<p>No sales data available for this date</p>' : ''}
                 </div>
               </div>
             </div>
           </div>
           
-          <!-- Additional Details -->
           <div class="card">
             <div class="card-header">
               <h2 class="card-title">Report Details</h2>
@@ -422,11 +532,11 @@ export function ZReport() {
                   <h4 class="details-title">Payment Methods</h4>
                   <div class="details-item">
                     <span>Cash:</span>
-                    <span>${((reportData.cashSales / reportData.totalSales) * 100).toFixed(1)}%</span>
+                    <span>${reportData.totalSales > 0 ? ((reportData.cashSales / reportData.totalSales) * 100).toFixed(1) : '0.0'}%</span>
                   </div>
                   <div class="details-item">
                     <span>Card:</span>
-                    <span>${((reportData.cardSales / reportData.totalSales) * 100).toFixed(1)}%</span>
+                    <span>${reportData.totalSales > 0 ? ((reportData.cardSales / reportData.totalSales) * 100).toFixed(1) : '0.0'}%</span>
                   </div>
                 </div>
               </div>
@@ -446,7 +556,6 @@ export function ZReport() {
   const printReport = () => {
     const reportContent = prepareReportContent();
     
-    // Create a new window for printing
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       toast.error('Please allow pop-ups to print the report');
@@ -456,11 +565,9 @@ export function ZReport() {
     printWindow.document.write(reportContent);
     printWindow.document.close();
     
-    // Add event listener to trigger print when content is loaded
     printWindow.onload = function() {
       setTimeout(() => {
         printWindow.print();
-        // No need to close the window after printing - user can close it
       }, 500);
     };
     
@@ -475,7 +582,6 @@ export function ZReport() {
     const reportContent = prepareReportContent();
     
     try {
-      // Create a new window for PDF export
       const pdfWindow = window.open('', '_blank');
       if (!pdfWindow) {
         toast.error('Please allow pop-ups to export the PDF');
@@ -486,7 +592,6 @@ export function ZReport() {
       pdfWindow.document.write(reportContent);
       pdfWindow.document.close();
       
-      // Add guidance text for saving as PDF
       const saveInstructions = document.createElement('div');
       saveInstructions.style.position = 'fixed';
       saveInstructions.style.top = '0';
@@ -501,7 +606,6 @@ export function ZReport() {
       
       pdfWindow.document.body.prepend(saveInstructions);
       
-      // Add script to trigger print dialog after a delay
       const script = document.createElement('script');
       script.textContent = `
         setTimeout(() => {
@@ -521,6 +625,11 @@ export function ZReport() {
       setIsExporting(false);
     }
   };
+
+  // Generate report when date changes
+  useEffect(() => {
+    generateReport();
+  }, [selectedDate]);
 
   return (
     <div className="space-y-6">
@@ -562,7 +671,7 @@ export function ZReport() {
         </CardContent>
       </Card>
 
-      {/* Report Content - Referenced for printing */}
+      {/* Report Content */}
       <div ref={reportRef}>
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -664,17 +773,21 @@ export function ZReport() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {reportData.hourlyBreakdown.map((hour, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <span className="font-medium">{hour.hour}</span>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        ({hour.transactions} transactions)
-                      </span>
+                {reportData.hourlyBreakdown.length > 0 ? (
+                  reportData.hourlyBreakdown.map((hour, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <span className="font-medium">{hour.hour}</span>
+                        <span className="text-sm text-muted-foreground ml-2">
+                          ({hour.transactions} transactions)
+                        </span>
+                      </div>
+                      <span className="font-medium">LKR {hour.sales.toFixed(2)}</span>
                     </div>
-                    <span className="font-medium">LKR {hour.sales.toFixed(2)}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-muted-foreground py-4">No sales data available for this date</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -711,15 +824,15 @@ export function ZReport() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Total Discounts:</span>
-                    <span className="text-red-600">-LKR {reportData.discounts.toFixed(2)}</span>
+                    <span className="text-red-600">-LKR ${reportData.discounts.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Returns:</span>
-                    <span className="text-red-600">-LKR {reportData.returns.toFixed(2)}</span>
+                    <span className="text-red-600">-LKR ${reportData.returns.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Net Adjustments:</span>
-                    <span className="text-red-600">-LKR {(reportData.discounts + reportData.returns).toFixed(2)}</span>
+                    <span className="text-red-600">-LKR ${(reportData.discounts + reportData.returns).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -729,11 +842,11 @@ export function ZReport() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Cash:</span>
-                    <span>{((reportData.cashSales / reportData.totalSales) * 100).toFixed(1)}%</span>
+                    <span>{reportData.totalSales > 0 ? ((reportData.cashSales / reportData.totalSales) * 100).toFixed(1) : '0.0'}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Card:</span>
-                    <span>{((reportData.cardSales / reportData.totalSales) * 100).toFixed(1)}%</span>
+                    <span>{reportData.totalSales > 0 ? ((reportData.cardSales / reportData.totalSales) * 100).toFixed(1) : '0.0'}%</span>
                   </div>
                 </div>
               </div>

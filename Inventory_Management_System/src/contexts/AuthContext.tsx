@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase'; // Adjust path to your firebase config
+import { toast } from 'sonner';
 
 export interface User {
   id: string;
@@ -21,7 +24,7 @@ export interface Role {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
   isLoading: boolean;
@@ -103,34 +106,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, role: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    // Mock authentication - in real app, this would be an API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (email && password) {
-      const permissions = getRolePermissions(role);
+    try {
+      // Check if user exists in Firebase
+      const usersCollection = collection(db, 'users');
+      const userQuery = query(usersCollection, where('email', '==', email));
+      const querySnapshot = await getDocs(userQuery);
       
-      const newUser: User = {
-        id: '1',
-        name: email.split('@')[0],
-        email,
-        role: role,
-        permissions: permissions,
-        userType: 'Employee',
-        profileImage: null,
-        createdAt: new Date().toISOString()
+      if (querySnapshot.empty) {
+        toast.error('User not found. Please contact administrator.');
+        setIsLoading(false);
+        return false;
+      }
+      
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+      
+      // Verify password (in production, use proper password hashing)
+      if (userData.password !== password) {
+        toast.error('Invalid password');
+        setIsLoading(false);
+        return false;
+      }
+      
+      // Check if user is active
+      if (userData.status !== 'Active') {
+        toast.error('Your account is inactive. Please contact administrator.');
+        setIsLoading(false);
+        return false;
+      }
+      
+      // Create user session
+      const userSession: User = {
+        id: userDoc.id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        permissions: userData.permissions || [],
+        userType: userData.userType || 'Employee',
+        profileImage: userData.profileImage || null,
+        createdAt: userData.createdAt || new Date().toISOString()
       };
       
-      setUser(newUser);
-      localStorage.setItem('inventory_user', JSON.stringify(newUser));
+      setUser(userSession);
+      localStorage.setItem('inventory_user', JSON.stringify(userSession));
       setIsLoading(false);
       return true;
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Login failed. Please try again.');
+      setIsLoading(false);
+      return false;
     }
-    
-    setIsLoading(false);
-    return false;
   };
 
   const logout = () => {

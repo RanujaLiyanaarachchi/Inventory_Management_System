@@ -20,6 +20,7 @@ import { Promotions } from './components/pages/Promotions';
 import { SummaryReport } from './components/pages/SummaryReport';
 import { ZReport } from './components/pages/ZReport';
 import { SupplierReturn } from './components/pages/SupplierReturn';
+import { Button } from './components/ui/button';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
@@ -52,103 +53,75 @@ function AppContent() {
   }
 
   const renderPage = () => {
+    // Check if user has permission for the current page
+    const menuItems = [
+      { id: 'dashboard', permission: 'dashboard' },
+      { id: 'bill', permission: 'bill' },
+      { id: 'add-users', permission: 'add-users' },
+      { id: 'users', permission: 'users' },
+      { id: 'suppliers', permission: 'suppliers' },
+      { id: 'products', permission: 'products' },
+      { id: 'stocks', permission: 'stocks' },
+      { id: 'category', permission: 'category' },
+      { id: 'invoice', permission: 'invoice' },
+      { id: 'promotions', permission: 'promotions' },
+      { id: 'summary-report', permission: 'summary-report' },
+      { id: 'grn', permission: 'grn' },
+      { id: 'barcode', permission: 'barcode' },
+      { id: 'supplier-return', permission: 'supplier-return' },
+      { id: 'z-report', permission: 'z-report' },
+    ];
+
+    const currentMenuItem = menuItems.find(item => item.id === currentPage);
+    const hasPermission = currentMenuItem ? user.permissions.includes(currentMenuItem.permission) : true;
+
+    if (!hasPermission) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground">You don't have permission to access this page.</p>
+            <Button onClick={() => setCurrentPage('dashboard')} className="mt-4">
+              Return to Dashboard
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     switch (currentPage) {
       case 'dashboard':
-        return (
-          <ProtectedRoute permission="dashboard">
-            <Dashboard />
-          </ProtectedRoute>
-        );
+        return <Dashboard />;
       case 'bill':
-        return (
-          <ProtectedRoute permission="bill">
-            <BillPage />
-          </ProtectedRoute>
-        );
+        return <BillPage />;
       case 'add-users':
-        return (
-          <ProtectedRoute permission="add-users">
-            <AddUsers />
-          </ProtectedRoute>
-        );
+        return <AddUsers />;
       case 'users':
-        return (
-          <ProtectedRoute permission="users">
-            <UsersPage />
-          </ProtectedRoute>
-        );
+        return <UsersPage />;
       case 'suppliers':
-        return (
-          <ProtectedRoute permission="suppliers">
-            <Suppliers />
-          </ProtectedRoute>
-        );
+        return <Suppliers />;
       case 'products':
-        return (
-          <ProtectedRoute permission="products">
-            <Products />
-          </ProtectedRoute>
-        );
+        return <Products />;
       case 'stocks':
-        return (
-          <ProtectedRoute permission="stocks">
-            <Stocks />
-          </ProtectedRoute>
-        );
+        return <Stocks />;
       case 'category':
-        return (
-          <ProtectedRoute permission="category">
-            <Categories />
-          </ProtectedRoute>
-        );
+        return <Categories />;
       case 'invoice':
-        return (
-          <ProtectedRoute permission="invoice">
-            <Invoice />
-          </ProtectedRoute>
-        );
+        return <Invoice />;
       case 'promotions':
-        return (
-          <ProtectedRoute permission="promotions">
-            <Promotions />
-          </ProtectedRoute>
-        );
+        return <Promotions />;
       case 'summary-report':
-        return (
-          <ProtectedRoute permission="summary-report">
-            <SummaryReport />
-          </ProtectedRoute>
-        );
+        return <SummaryReport />;
       case 'grn':
-        return (
-          <ProtectedRoute permission="grn">
-            <GRN />
-          </ProtectedRoute>
-        );
+        return <GRN />;
       case 'barcode':
-        return (
-          <ProtectedRoute permission="barcode">
-            <EnhancedBarcode />
-          </ProtectedRoute>
-        );
+        return <EnhancedBarcode />;
       case 'supplier-return':
-        return (
-          <ProtectedRoute permission="supplier-return">
-            <SupplierReturn />
-          </ProtectedRoute>
-        );
+        return <SupplierReturn />;
       case 'z-report':
-        return (
-          <ProtectedRoute permission="z-report">
-            <ZReport />
-          </ProtectedRoute>
-        );
+        return <ZReport />;
       default:
-        return (
-          <ProtectedRoute permission="dashboard">
-            <Dashboard />
-          </ProtectedRoute>
-        );
+        return <Dashboard />;
     }
   };
 
