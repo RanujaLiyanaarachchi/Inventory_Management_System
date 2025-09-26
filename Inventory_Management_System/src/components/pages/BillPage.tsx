@@ -50,6 +50,9 @@ export function BillPage() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
   const [amountReceived, setAmountReceived] = useState('');
   const [discount, setDiscount] = useState(0);
+  const [discountInput, setDiscountInput] = useState('0'); // Add separate input state for better UX
+  const [taxRate, setTaxRate] = useState(10); // Add editable tax rate state
+  const [taxRateInput, setTaxRateInput] = useState('10'); // Add separate input state for better UX
   const [showBillDialog, setShowBillDialog] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -158,7 +161,29 @@ export function BillPage() {
   const getSubtotal = () => cart.reduce((sum, item) => sum + item.total, 0);
   const getDiscountAmount = () => (getSubtotal() * discount) / 100;
   const getTotalAfterDiscount = () => getSubtotal() - getDiscountAmount();
-  const getTax = () => getTotalAfterDiscount() * 0.1; // 10% tax
+  const getTax = () => getTotalAfterDiscount() * (taxRate / 100); // Use editable tax rate
+
+  // Handle discount input changes
+  const handleDiscountChange = (value: string) => {
+    setDiscountInput(value);
+    const numericValue = parseFloat(value);
+    if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 100) {
+      setDiscount(numericValue);
+    } else if (value === '') {
+      setDiscount(0);
+    }
+  };
+
+  // Handle tax rate input changes
+  const handleTaxRateChange = (value: string) => {
+    setTaxRateInput(value);
+    const numericValue = parseFloat(value);
+    if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 100) {
+      setTaxRate(numericValue);
+    } else if (value === '') {
+      setTaxRate(0);
+    }
+  };
   const getFinalTotal = () => getTotalAfterDiscount() + getTax();
   const getChange = () => {
     const received = parseFloat(amountReceived) || 0;
@@ -250,7 +275,7 @@ export function BillPage() {
         discount: getDiscountAmount(),
         discountPercentage: discount,
         tax: getTax(),
-        taxRate: 0.1, // 10%
+        taxRate: taxRate, // Use editable tax rate
         total: getFinalTotal(),
         paymentMethod,
         amountReceived: paymentMethod === 'cash' ? parseFloat(amountReceived) || getFinalTotal() : getFinalTotal(),
@@ -281,6 +306,9 @@ export function BillPage() {
       setCustomerPhone('');
       setAmountReceived('');
       setDiscount(0);
+      setDiscountInput('0'); // Reset discount input to default
+      setTaxRate(10); // Reset tax rate to default
+      setTaxRateInput('10'); // Reset tax rate input to default
       setSearchTerm('');
 
       toast.success('Payment processed successfully! Invoice saved to database.');
@@ -390,7 +418,7 @@ export function BillPage() {
         <div class="summary">
           <div class="summary-row"><span class="small-muted">Subtotal</span><span>LKR ${lastInvoice.subtotal.toFixed(2)}</span></div>
           <div class="summary-row"><span class="small-muted">Discount</span><span>-LKR ${lastInvoice.discount.toFixed(2)}</span></div>
-          <div class="summary-row"><span class="small-muted">Tax (10%)</span><span>LKR ${lastInvoice.tax.toFixed(2)}</span></div>
+          <div class="summary-row"><span class="small-muted">Tax (${lastInvoice.taxRate}%)</span><span>LKR ${lastInvoice.tax.toFixed(2)}</span></div>
           <div class="summary-row total"><span>Total</span><span>LKR ${lastInvoice.total.toFixed(2)}</span></div>
           <div class="summary-row small-muted"><span>Received</span><span>LKR ${lastInvoice.amountReceived.toFixed(2)}</span></div>
           <div class="summary-row small-muted"><span>Change</span><span>LKR ${lastInvoice.change.toFixed(2)}</span></div>
@@ -573,17 +601,28 @@ export function BillPage() {
                     type="number"
                     min="0"
                     max="100"
-                    value={discount}
-                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                    value={discountInput}
+                    onChange={(e) => handleDiscountChange(e.target.value)}
                     className="w-16 h-6 text-xs"
+                    placeholder="0"
                   />
                   <span>%</span>
                   <span className="ml-auto">-LKR {getDiscountAmount().toFixed(2)}</span>
                 </div>
                 
-                <div className="flex justify-between">
-                  <span>Tax (10%):</span>
-                  <span>LKR {getTax().toFixed(2)}</span>
+                <div className="flex items-center gap-2">
+                  <span>Tax:</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={taxRateInput}
+                    onChange={(e) => handleTaxRateChange(e.target.value)}
+                    className="w-16 h-6 text-xs"
+                    placeholder="0"
+                  />
+                  <span>%</span>
+                  <span className="ml-auto">LKR {getTax().toFixed(2)}</span>
                 </div>
                 
                 <Separator />
@@ -714,7 +753,7 @@ export function BillPage() {
                   <span className="font-medium">-LKR {lastInvoice.discount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tax (10%)</span>
+                  <span className="text-muted-foreground">Tax ({lastInvoice.taxRate}%)</span>
                   <span className="font-medium">LKR {lastInvoice.tax.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2 mt-2">
