@@ -18,6 +18,16 @@ import {
   DialogFooter,
   DialogClose
 } from "../ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 // Import your existing Firebase configuration
@@ -66,6 +76,10 @@ export function GRN() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editData, setEditData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // State for delete confirmation
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [grnToDelete, setGrnToDelete] = useState<GRN | null>(null);
 
   // Firebase collection reference
   const grnCollectionRef = collection(db, 'grns');
@@ -198,11 +212,20 @@ export function GRN() {
     }
   };
 
-  const deleteGRN = async (id: string) => {
+  const handleDeleteClick = (grn: GRN) => {
+    setGrnToDelete(grn);
+    setShowDeleteDialog(true);
+  };
+
+  const deleteGRN = async () => {
+    if (!grnToDelete) return;
+    
     try {
-      const grnDocRef = doc(db, 'grns', id);
+      const grnDocRef = doc(db, 'grns', grnToDelete.id);
       await deleteDoc(grnDocRef);
       toast.success('GRN deleted successfully');
+      setShowDeleteDialog(false);
+      setGrnToDelete(null);
     } catch (error) {
       console.error('Error deleting GRN:', error);
       toast.error('Error deleting GRN');
@@ -558,7 +581,7 @@ export function GRN() {
                           <Button size="sm" variant="outline" onClick={() => printGRN(grn)} title="Print GRN">
                             <Printer className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => deleteGRN(grn.id)} title="Delete GRN">
+                          <Button size="sm" variant="outline" onClick={() => handleDeleteClick(grn)} title="Delete GRN">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -899,6 +922,40 @@ export function GRN() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Delete GRN
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete GRN <strong>{grnToDelete?.id}</strong>? 
+              <br />
+              <br />
+              This action cannot be undone. This will permanently delete the GRN record and all associated data.
+              <br />
+              <br />
+              <span className="text-sm text-muted-foreground">
+                Supplier: {grnToDelete?.supplier} | 
+                Total Value: LKR {grnToDelete?.total?.toFixed(2)} | 
+                Items: {grnToDelete?.items}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={deleteGRN}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete GRN
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

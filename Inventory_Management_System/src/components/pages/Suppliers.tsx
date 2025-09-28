@@ -421,19 +421,21 @@ export function Suppliers() {
                       <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select category"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.length === 0 ? (
-                        <SelectItem value="" disabled>
-                          {categoriesLoading ? "Loading categories..." : "No categories available"}
+                      {categories.length === 0 && !categoriesLoading ? (
+                        <SelectItem value="no-categories" disabled>
+                          No categories available
                         </SelectItem>
                       ) : (
-                        categories.map((category) => (
-                          <SelectItem key={category.id} value={category.name}>
-                            {category.name}
-                          </SelectItem>
-                        ))
-                      )}
-                      {categories.length > 0 && (
-                        <SelectItem value="Other">Other</SelectItem>
+                        <>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.name}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                          {categories.length > 0 && (
+                            <SelectItem value="Other">Other</SelectItem>
+                          )}
+                        </>
                       )}
                     </SelectContent>
                   </Select>
